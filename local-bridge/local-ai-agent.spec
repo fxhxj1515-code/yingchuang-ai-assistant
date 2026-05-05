@@ -5,7 +5,7 @@ a = Analysis(
     ['bridge.py'],
     pathex=[],
     binaries=[],
-    datas=[('bridge.py', '.')],
+    datas=[('bridge.py', '.'), ('wechat_bot.py', '.')],
     hiddenimports=['flask', 'requests'],
     hookspath=[],
     hooksconfig={},

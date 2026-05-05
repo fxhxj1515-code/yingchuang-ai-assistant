@@ -42,7 +42,8 @@
     "targets": "all",
     "resources": {
       "../local-bridge/README.md": "local-bridge/",
-      "../local-bridge/bridge.py": "local-bridge/"
+      "../local-bridge/bridge.py": "local-bridge/",
+      "../local-bridge/wechat_bot.py": "local-bridge/"
     },
     "windows": {
       "wix": {
