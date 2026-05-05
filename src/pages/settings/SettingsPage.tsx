@@ -23,6 +23,7 @@ import {
   Upload,
   Trash2,
   User,
+  MessageCircle,
   type LucideIcon,
 } from "lucide-react";
 import i18n from "../../i18n";
@@ -38,6 +39,7 @@ import { getAvatarProps } from "../../lib/avatar-utils";
 import { EmptyState } from "../../components/shared/EmptyState";
 import { EnvironmentCheck } from "./EnvironmentCheck";
 import { AccountPage } from "./AccountPage";
+import { WeChatPage } from "./WeChatPage";
 import { getLoggedInPhone } from "../../services/auth-service";
 
 // Internal sub-page stack
@@ -261,6 +263,29 @@ export function SettingsPage({
                 id: "stt-settings",
                 title: t("settings.sttProvider"),
                 component: <SttSettingsPage />,
+              })
+            }
+            isLast
+          />
+        </div>
+
+        {/* ── 连接 ── */}
+        <SectionHeader label="连接" />
+        <div>
+          <SettingsRow
+            icon={MessageCircle}
+            iconColor="#22c55e"
+            iconBg="rgba(34,197,94,0.1)"
+            label="微信"
+            detail={(() => {
+              // 简单从 bridge 状态判断
+              return "";
+            })()}
+            onPress={() =>
+              push({
+                id: "wechat",
+                title: "微信连接",
+                component: <WeChatPage onClose={pop} />,
               })
             }
             isLast
