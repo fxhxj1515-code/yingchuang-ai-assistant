@@ -512,7 +512,6 @@ if __name__ == "__main__":
     print(f"   地址: http://localhost:{BRIDGE_PORT}/v1")
     print(f"   Key:  留空")
     print(f"")
-    print(f"📥 需要桥梁工具？下载地址:")
-    print(f"   https://i.hwzs.club/downloads/ai-agent-bridge-v1.0.zip")
+    print(f"💡 桥梁已内置在 映创AI助手 安装包中")
     print(f"⚠️ 确保 Ollama 已启动（当前端口 {OLLAMA_URL}）")
     app.run(host="0.0.0.0", port=BRIDGE_PORT, debug=False)
