@@ -1,0 +1,473 @@
+import { useState, useCallback, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
+import { useMobileNav } from "../../contexts/MobileNavContext";
+import {
+  IoChatbubbles,
+  IoCube,
+  IoPersonCircle,
+  IoSettings,
+  IoSearchOutline,
+  IoCloseCircle,
+  IoSparkles,
+  IoChatbubbleOutline,
+  IoAddCircleOutline,
+  IoTrashOutline,
+  IoPeopleOutline,
+} from "../../icons";
+import { ModelPicker } from "../shared/ModelPicker";
+import { MobileStack } from "./MobileStack";
+import { SettingsMainContent } from "./SettingsMainContent";
+import { DiscoverPage } from "../../pages/DiscoverPage";
+import { ModelsPage } from "../../pages/settings/ModelsPage";
+import { useChatStore, type ChatState } from "../../stores/chat-store";
+import { useConversations } from "../../hooks/useDatabase";
+import { useProviderStore } from "../../stores/provider-store";
+import { useIdentityStore } from "../../stores/identity-store";
+import type { Conversation } from "../../types";
+import { getAvatarProps } from "../../lib/avatar-utils";
+import { useConfirm } from "../shared/ConfirmDialogProvider";
+import i18n from "../../i18n";
+
+// ── Tab Icons ──
+
+function IonChatbubbles() {
+  return <IoChatbubbles size={22} />;
+}
+function IonCube() {
+  return <IoCube size={22} />;
+}
+function IonPersonCircle() {
+  return <IoPersonCircle size={22} />;
+}
+function IonSettings() {
+  return <IoSettings size={22} />;
+}
+
+type MobileTab = "chats" | "experts" | "discover" | "settings";
+
+const TAB_IDS: { id: MobileTab; Icon: React.FC; labelKey: string }[] = [
+  { id: "chats", Icon: IonChatbubbles, labelKey: "tabs.chats" },
+  { id: "experts", Icon: IonCube, labelKey: "tabs.models" },
+  { id: "discover", Icon: IonPersonCircle, labelKey: "tabs.personas" },
+  { id: "settings", Icon: IonSettings, labelKey: "tabs.settings" },
+];
+
+const MOBILE_ACTIVE_TAB_KEY = "talkio:mobile_active_tab";
+
+function loadInitialMobileTab(): MobileTab {
+  try {
+    const v = sessionStorage.getItem(MOBILE_ACTIVE_TAB_KEY);
+    if (v === "chats" || v === "experts" || v === "discover" || v === "settings") return v;
+  } catch {
+    // ignore
+  }
+  return "chats";
+}
+
+export function MobileLayout() {
+  return <MobileStack />;
+}
+
+// ── Tab Layout ──
+
+export function MobileTabLayout() {
+  const { t } = useTranslation();
+  const [activeTab, setActiveTabState] = useState<MobileTab>(() => loadInitialMobileTab());
+  const setActiveTab = useCallback((tab: MobileTab) => {
+    try {
+      sessionStorage.setItem(MOBILE_ACTIVE_TAB_KEY, tab);
+    } catch {
+      /* ignore */
+    }
+    setActiveTabState(tab);
+  }, []);
+  const tabBg = "var(--background)";
+
+  return (
+    <div
+      className="flex h-full flex-col"
+      style={{ backgroundColor: tabBg, paddingTop: "env(safe-area-inset-top, 0px)" }}
+    >
+      {/* Tab Content — keep all tabs mounted, hide inactive with display:none to preserve state */}
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div
+          className="absolute inset-0"
+          style={{ display: activeTab === "chats" ? undefined : "none" }}
+        >
+          <MobileConversationList
+            onNavigateToExperts={() => setActiveTab("experts")}
+            onNavigateToSettings={() => setActiveTab("settings")}
+          />
+        </div>
+        <div
+          className="absolute inset-0"
+          style={{ display: activeTab === "experts" ? undefined : "none" }}
+        >
+          <ModelsPage isMobile />
+        </div>
+        <div
+          className="absolute inset-0"
+          style={{ display: activeTab === "discover" ? undefined : "none" }}
+        >
+          <DiscoverPage />
+        </div>
+        <div
+          className="absolute inset-0"
+          style={{ display: activeTab === "settings" ? undefined : "none" }}
+        >
+          <SettingsMainContent />
+        </div>
+      </div>
+
+      {/* Bottom Tab Bar — iOS native style */}
+      <div
+        className="flex flex-shrink-0 items-center justify-around px-2 pt-1.5"
+        style={{
+          paddingBottom: "max(6px, env(safe-area-inset-bottom, 6px))",
+          borderTop: "0.5px solid var(--border)",
+          backgroundColor: "var(--background)",
+          backdropFilter: "saturate(180%) blur(20px)",
+          WebkitBackdropFilter: "saturate(180%) blur(20px)",
+        }}
+      >
+        {TAB_IDS.map(({ id, Icon, labelKey }) => (
+          <button
+            key={id}
+            onClick={() => setActiveTab(id)}
+            className="flex min-w-[64px] flex-col items-center gap-[1px] py-0.5"
+            style={{ color: activeTab === id ? "var(--primary)" : "var(--muted-foreground)" }}
+          >
+            <Icon />
+            <span className="text-[10px] leading-tight font-medium">{t(labelKey)}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Re-export MobileChatDetail from its own file
+export { MobileChatDetail } from "./MobileChatDetail";
+
+// ── Chats List (1:1 RN original) ──
+
+type FilterType = "all" | "single" | "group";
+
+function MobileConversationList({
+  onNavigateToExperts,
+  onNavigateToSettings,
+}: {
+  onNavigateToExperts: () => void;
+  onNavigateToSettings: () => void;
+}) {
+  const { t } = useTranslation();
+  const { confirm } = useConfirm();
+  const mobileNav = useMobileNav();
+  const conversations = useConversations();
+  const deleteConversation = useChatStore((s) => s.deleteConversation);
+  const providers = useProviderStore((s) => s.providers);
+  const models = useProviderStore((s) => s.models);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filter, setFilter] = useState<FilterType>("all");
+
+  const hasProviders = providers.some(
+    (p) => (p.status as string) === "active" || p.status === "connected",
+  );
+
+  const filtered = useMemo(
+    () =>
+      conversations.filter((c: Conversation) => {
+        if (filter === "single" && c.type !== "single") return false;
+        if (filter === "group" && c.type !== "group") return false;
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase();
+          const matchTitle = c.title.toLowerCase().includes(q);
+          const matchLastMsg = c.lastMessage?.toLowerCase().includes(q);
+          if (!matchTitle && !matchLastMsg) return false;
+        }
+        return true;
+      }),
+    [conversations, filter, searchQuery],
+  );
+
+  return (
+    <div className="flex h-full flex-col" style={{ backgroundColor: "var(--background)" }}>
+      {/* iOS Large Title Header */}
+      <div className="flex-shrink-0 px-4 pt-2 pb-1">
+        <div className="mb-1 flex items-center justify-between">
+          <h1 className="text-foreground text-[20px] font-bold tracking-tight">
+            {t("tabs.chats")}
+          </h1>
+          <button
+            onClick={() => setShowSearch((v) => !v)}
+            className="flex h-9 w-9 items-center justify-center rounded-full active:opacity-60"
+          >
+            <IoSearchOutline size={22} color="var(--primary)" />
+          </button>
+        </div>
+      </div>
+
+      {/* Search Bar */}
+      {showSearch && (
+        <div className="px-4 pb-2">
+          <div
+            className="flex items-center rounded-xl px-3 py-2"
+            style={{ backgroundColor: "var(--secondary)" }}
+          >
+            <IoSearchOutline size={18} color="var(--muted-foreground)" />
+            <input
+              className="text-foreground ml-2 flex-1 bg-transparent text-[15px] outline-none"
+              placeholder={t("chats.searchChats")}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              autoFocus
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery("")} className="active:opacity-60">
+                <IoCloseCircle size={18} color="var(--muted-foreground)" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Filter Pills (1:1 RN — filters by conv.type) */}
+      <div className="px-4 pb-3">
+        <div className="flex gap-2">
+          {(["all", "single", "group"] as FilterType[]).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-colors active:opacity-70 ${
+                filter === f ? "text-white" : "text-foreground"
+              }`}
+              style={{
+                backgroundColor: filter === f ? "var(--primary)" : "var(--secondary)",
+              }}
+            >
+              {f === "all"
+                ? t("chats.filterAll")
+                : f === "single"
+                  ? t("chats.filterSingle")
+                  : t("chats.filterGroups")}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* List */}
+      <div className="flex flex-1 flex-col overflow-y-auto">
+        {filtered.length === 0 ? (
+          <OnboardingOrEmpty
+            hasProviders={hasProviders}
+            onNew={onNavigateToExperts}
+            onNavigateToSettings={onNavigateToSettings}
+          />
+        ) : (
+          filtered.map((conv) => (
+            <ConversationItem
+              key={conv.id}
+              conversation={conv}
+              onSelect={() => mobileNav?.pushChat(conv.id)}
+              onDelete={async () => {
+                const ok = await confirm({
+                  title: t("chat.deleteConversation"),
+                  description: t("chat.deleteConversationConfirm"),
+                  destructive: true,
+                });
+                if (ok) deleteConversation(conv.id);
+              }}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Onboarding / Empty State (1:1 RN original) ──
+
+function OnboardingOrEmpty({
+  hasProviders,
+  onNew,
+  onNavigateToSettings,
+}: {
+  hasProviders: boolean;
+  onNew: () => void;
+  onNavigateToSettings: () => void;
+}) {
+  const { t } = useTranslation();
+  if (!hasProviders) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center px-8">
+        <img src="/logo.png" alt="Talkio" className="mb-6 h-20 w-20 object-contain" />
+        <p className="text-foreground text-center text-xl font-bold">{t("settings.appName")}</p>
+        <p className="text-muted-foreground mt-3 text-center text-sm leading-5">
+          {t("models.configureHint")}
+        </p>
+        <button
+          onClick={onNavigateToSettings}
+          className="mt-6 rounded-xl px-8 py-3 text-base font-semibold text-white active:opacity-80"
+          style={{ backgroundColor: "var(--primary)" }}
+        >
+          {t("models.configureProvider")}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center px-8">
+      <img src="/logo.png" alt="Talkio" className="h-14 w-14 object-contain opacity-40" />
+      <p className="text-muted-foreground mt-3 text-center text-sm">{t("chats.noConversations")}</p>
+      <button
+        onClick={onNew}
+        className="mt-4 rounded-full px-6 py-2.5 text-sm font-medium text-white active:opacity-80"
+        style={{ backgroundColor: "var(--primary)" }}
+      >
+        {t("chats.startConversation")}
+      </button>
+    </div>
+  );
+}
+
+// ── Conversation Item (1:1 RN original with ModelAvatar + status dot) ──
+
+function ConversationItem({
+  conversation,
+  onSelect,
+  onDelete,
+}: {
+  conversation: Conversation;
+  onSelect: () => void;
+  onDelete: () => void;
+}) {
+  const { t } = useTranslation();
+  const getModelById = useProviderStore((s) => s.getModelById);
+  const getProviderById = useProviderStore((s) => s.getProviderById);
+  const getIdentityById = useIdentityStore((s) => s.getIdentityById);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didLongPress = useRef(false);
+
+  const firstParticipant = conversation.participants[0];
+  const firstModel = firstParticipant ? getModelById(firstParticipant.modelId) : null;
+  const modelName = firstModel?.displayName ?? conversation.title;
+  const provider = firstModel ? getProviderById(firstModel.providerId) : null;
+  const isConnected = provider?.status === "connected" || (provider?.status as string) === "active";
+  const identity = firstParticipant?.identityId
+    ? getIdentityById(firstParticipant.identityId)
+    : null;
+  const isGroup = conversation.type === "group";
+
+  const timeStr = formatDate(
+    conversation.lastMessageAt ?? conversation.updatedAt ?? conversation.createdAt ?? "",
+  );
+  const { color: avatarColor, initials } = getAvatarProps(modelName);
+
+  const handleTouchStart = useCallback(() => {
+    didLongPress.current = false;
+    longPressTimer.current = setTimeout(() => {
+      didLongPress.current = true;
+      onDelete();
+    }, 500);
+  }, [onDelete]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  const handleClick = useCallback(() => {
+    if (didLongPress.current) return;
+    onSelect();
+  }, [onSelect]);
+
+  return (
+    <button
+      onClick={handleClick}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onDelete();
+      }}
+      className="flex w-full items-center gap-4 px-4 py-3 text-left transition-colors active:opacity-80"
+      style={{ borderBottom: "0.5px solid var(--border)" }}
+    >
+      {/* Avatar with status dot (1:1 RN) */}
+      <div className="relative flex-shrink-0">
+        {isGroup ? (
+          <div
+            className="flex h-12 w-12 items-center justify-center rounded-full"
+            style={{ backgroundColor: "color-mix(in srgb, var(--primary) 15%, transparent)" }}
+          >
+            <IoPeopleOutline size={22} color="var(--primary)" />
+          </div>
+        ) : (
+          <div
+            className="flex h-12 w-12 items-center justify-center rounded-full text-sm font-semibold text-white"
+            style={{ backgroundColor: avatarColor }}
+          >
+            {initials}
+          </div>
+        )}
+        {!isGroup && firstModel && (
+          <div
+            className="absolute right-0.5 bottom-0.5 h-3.5 w-3.5 rounded-full border-2"
+            style={{
+              borderColor: "var(--background)",
+              backgroundColor: isConnected ? "var(--success)" : "var(--border)",
+            }}
+          />
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 flex items-center justify-between">
+          <span className="text-foreground flex items-center gap-1 flex-1 truncate text-[16px] font-semibold">
+            {conversation.pinned && (
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="var(--primary)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="flex-shrink-0"
+              >
+                <line x1="12" y1="17" x2="12" y2="22" />
+                <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+              </svg>
+            )}
+            <span className="truncate">{isGroup ? conversation.title : modelName}</span>
+          </span>
+          <span className="text-muted-foreground ml-2 flex-shrink-0 text-xs">{timeStr}</span>
+        </div>
+        <p className="text-muted-foreground truncate text-sm">
+          {identity ? `${identity.name}: ` : ""}
+          {conversation.lastMessage ?? t("chats.startConversation")}
+        </p>
+      </div>
+    </button>
+  );
+}
+
+function formatDate(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if (diffDays === 1) return i18n.t("common.yesterday", { defaultValue: "Yesterday" });
+  if (diffDays < 7) return d.toLocaleDateString([], { weekday: "short" });
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}

@@ -1,0 +1,540 @@
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import { stackflow, type ActivityComponentType } from "@stackflow/react";
+import { basicRendererPlugin } from "@stackflow/plugin-renderer-basic";
+import { basicUIPlugin } from "@stackflow/plugin-basic-ui";
+import { AppScreen } from "@stackflow/plugin-basic-ui";
+import "@stackflow/plugin-basic-ui/index.css";
+import { IoAdd, IoTrashOutline, IoChevronForward, IoAddCircleOutline, IoRefreshOutline } from "../../icons";
+import { toast } from "sonner";
+import { useChatStore } from "../../stores/chat-store";
+import { useProviderStore } from "../../stores/provider-store";
+import { useMcpStore, type McpServerConfig } from "../../stores/mcp-store";
+import { useConfirm } from "../shared/ConfirmDialogProvider";
+import { getAvatarProps } from "../../lib/avatar-utils";
+import { EmptyState } from "../shared/EmptyState";
+import { ProviderEditPage } from "../../pages/settings/ProviderEditPage";
+import { SttSettingsPage } from "../../pages/settings/SttSettingsPage";
+import { McpPage } from "../../pages/settings/McpPage";
+import { McpServerForm } from "../../pages/settings/McpServerForm";
+import { IdentityEditPage } from "../../pages/settings/IdentityPage";
+import { AddMemberContent, type SelectedMember } from "../shared/AddMemberPicker";
+import { MobileTabLayout, MobileChatDetail } from "./MobileLayout";
+import { MobileNavContext, type MobileNavFunctions } from "../../contexts/MobileNavContext";
+import { useConversation } from "../../hooks/useDatabase";
+
+// ── Forward declaration for useFlow ──
+let _useFlow: ReturnType<typeof stackflow>["useFlow"];
+
+// Track stack depth for Android back button (Home = 0, each pushed activity increments)
+let _stackDepth = 0;
+
+// ══════════════════════════════════════════
+// Activity: Home (Tab Layout)
+// ══════════════════════════════════════════
+const Home: ActivityComponentType = () => {
+  const { push, pop } = _useFlow();
+
+  // Expose a global back function for Android native back button
+  useEffect(() => {
+    window.__stackflowBack = () => {
+      if (_stackDepth > 0) {
+        pop();
+        return true;
+      }
+      return false;
+    };
+    return () => {
+      delete window.__stackflowBack;
+    };
+  }, [pop]);
+
+  const nav: MobileNavFunctions = useMemo(
+    () => ({
+      pushChat: (conversationId: string) => push("ChatDetail", { conversationId }),
+      pushAddMember: (conversationId?: string) =>
+        push("AddMember", { conversationId: conversationId ?? "" }),
+      pushIdentityNew: () => push("IdentityNew", {}),
+      pushIdentityEdit: (id: string) => push("IdentityEdit", { identityId: id }),
+      pushSettingsProviders: () => push("ProvidersList", {}),
+      pushSettingsProviderEdit: (editId?: string) => push("ProviderEdit", { editId: editId ?? "" }),
+      pushSettingsMcpTools: () => push("McpTools", {}),
+      pushSettingsMcpServerEdit: (serverId?: string) =>
+        push("McpServerEdit", { serverId: serverId ?? "" }),
+      pushSettingsStt: () => push("SttSettings", {}),
+    }),
+    [push],
+  );
+
+  return (
+    <AppScreen>
+      <MobileNavContext.Provider value={nav}>
+        <MobileTabLayout />
+      </MobileNavContext.Provider>
+    </AppScreen>
+  );
+};
+
+// ══════════════════════════════════════════
+// Activity: Chat Detail
+// ══════════════════════════════════════════
+const ChatDetail: ActivityComponentType<{ conversationId: string }> = ({ params }) => {
+  const { pop, push } = _useFlow();
+  const setCurrentConversation = useChatStore((s) => s.setCurrentConversation);
+
+  useEffect(() => {
+    _stackDepth++;
+    return () => {
+      _stackDepth--;
+    };
+  }, []);
+  useEffect(() => {
+    if (params.conversationId) setCurrentConversation(params.conversationId);
+    return () => setCurrentConversation(null);
+  }, [params.conversationId, setCurrentConversation]);
+
+  const nav: MobileNavFunctions = useMemo(
+    () => ({
+      pushChat: (conversationId: string) => push("ChatDetail", { conversationId }),
+      pushAddMember: (conversationId?: string) =>
+        push("AddMember", { conversationId: conversationId ?? "" }),
+      pushIdentityNew: () => push("IdentityNew", {}),
+      pushIdentityEdit: (id: string) => push("IdentityEdit", { identityId: id }),
+      pushSettingsProviders: () => push("ProvidersList", {}),
+      pushSettingsProviderEdit: (editId?: string) => push("ProviderEdit", { editId: editId ?? "" }),
+      pushSettingsMcpTools: () => push("McpTools", {}),
+      pushSettingsMcpServerEdit: (serverId?: string) =>
+        push("McpServerEdit", { serverId: serverId ?? "" }),
+      pushSettingsStt: () => push("SttSettings", {}),
+    }),
+    [push],
+  );
+
+  return (
+    <AppScreen>
+      <MobileNavContext.Provider value={nav}>
+        <MobileChatDetail conversationId={params.conversationId} onBack={() => pop()} />
+      </MobileNavContext.Provider>
+    </AppScreen>
+  );
+};
+
+// ══════════════════════════════════════════
+// Activity: Add Member (full-screen, shared for create group & add to existing)
+// ══════════════════════════════════════════
+const AddMember: ActivityComponentType<{ conversationId: string }> = ({ params }) => {
+  const { t } = useTranslation();
+  const { pop, push } = _useFlow();
+  const createConversation = useChatStore((s) => s.createConversation);
+  const addParticipants = useChatStore((s) => s.addParticipants);
+  useEffect(() => {
+    _stackDepth++;
+    return () => {
+      _stackDepth--;
+    };
+  }, []);
+
+  const isCreateMode = !params.conversationId;
+  const conversation = useConversation(isCreateMode ? null : params.conversationId);
+  const existingModelIds = useMemo(
+    () => Array.from(new Set(conversation?.participants.map((p) => p.modelId) ?? [])),
+    [conversation],
+  );
+
+  const handleConfirm = async (members: SelectedMember[]) => {
+    if (isCreateMode) {
+      const conv = await createConversation(members[0].modelId, undefined, members);
+      pop();
+      setTimeout(() => push("ChatDetail", { conversationId: conv.id }), 100);
+    } else {
+      await addParticipants(params.conversationId, members);
+      pop();
+    }
+  };
+
+  return (
+    <AppScreen
+      appBar={{
+        title: isCreateMode
+          ? t("models.createGroup", { count: 0 }).replace(" (0)", "")
+          : t("chat.addMember"),
+      }}
+    >
+      <div className="flex h-full flex-col" style={{ backgroundColor: "var(--background)" }}>
+        <AddMemberContent
+          onConfirm={handleConfirm}
+          minMembers={isCreateMode ? 2 : 1}
+          confirmLabel={
+            isCreateMode
+              ? t("models.createGroup", { count: 0 }).replace("(0)", "").trim()
+              : undefined
+          }
+          existingModelIds={isCreateMode ? undefined : existingModelIds}
+        />
+      </div>
+    </AppScreen>
+  );
+};
+
+// ══════════════════════════════════════════
+// Activity: Identity New
+// ══════════════════════════════════════════
+const IdentityNew: ActivityComponentType = () => {
+  const { pop } = _useFlow();
+  useEffect(() => {
+    _stackDepth++;
+    return () => {
+      _stackDepth--;
+    };
+  }, []);
+
+  return (
+    <AppScreen>
+      <IdentityEditPage onClose={() => pop()} />
+    </AppScreen>
+  );
+};
+
+// ══════════════════════════════════════════
+// Activity: Identity Edit
+// ══════════════════════════════════════════
+const IdentityEdit: ActivityComponentType<{ identityId: string }> = ({ params }) => {
+  const { pop } = _useFlow();
+  useEffect(() => {
+    _stackDepth++;
+    return () => {
+      _stackDepth--;
+    };
+  }, []);
+
+  return (
+    <AppScreen>
+      <IdentityEditPage id={params.identityId} onClose={() => pop()} />
+    </AppScreen>
+  );
+};
+
+// ══════════════════════════════════════════
+// Activity: Providers List
+// ══════════════════════════════════════════
+const ProvidersList: ActivityComponentType = () => {
+  const { t } = useTranslation();
+  const { push, pop } = _useFlow();
+  const providers = useProviderStore((s) => s.providers);
+  const models = useProviderStore((s) => s.models);
+  useEffect(() => {
+    _stackDepth++;
+    return () => {
+      _stackDepth--;
+    };
+  }, []);
+
+  const fetchModels = useProviderStore((s) => s.fetchModels);
+  const updateProvider = useProviderStore((s) => s.updateProvider);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefreshAll = useCallback(async () => {
+    if (refreshing || providers.length === 0) return;
+    setRefreshing(true);
+    let success = 0;
+    let failed = 0;
+    await Promise.all(
+      providers.map(async (p: { id: string }) => {
+        updateProvider(p.id, { status: "pending" });
+        try {
+          await fetchModels(p.id);
+          success++;
+        } catch {
+          updateProvider(p.id, { status: "error" });
+          failed++;
+        }
+      }),
+    );
+    if (failed === 0) {
+      toast.success(t("providers.refreshSuccess", { success }));
+    } else if (success === 0) {
+      toast.error(t("providers.refreshFailed"));
+    } else {
+      toast.warning(t("providers.refreshPartial", { success, failed }));
+    }
+    setRefreshing(false);
+  }, [refreshing, providers, fetchModels, updateProvider, t]);
+
+  return (
+    <AppScreen
+      appBar={{
+        title: t("settings.providers"),
+        renderRight: () => (
+          <div className="flex items-center">
+            <button
+              onClick={handleRefreshAll}
+              disabled={refreshing || providers.length === 0}
+              className="p-2 active:opacity-60 disabled:opacity-40"
+              title={t("providers.refreshAll")}
+            >
+              <IoRefreshOutline
+                size={20}
+                color="var(--primary)"
+                className={refreshing ? "animate-spin" : ""}
+              />
+            </button>
+            <button onClick={() => push("ProviderEdit", {})} className="p-2 active:opacity-60">
+              <IoAdd size={22} color="var(--primary)" />
+            </button>
+          </div>
+        ),
+      }}
+    >
+      <div className="h-full overflow-y-auto" style={{ backgroundColor: "var(--background)" }}>
+        <div className="pb-8">
+          {providers.length === 0 ? (
+            <EmptyState
+              icon={<IoAddCircleOutline size={28} color="var(--muted-foreground)" />}
+              title={t("models.noModels")}
+              subtitle={t("models.configureHint")}
+            />
+          ) : (
+            <div
+              style={{
+                borderTop: "0.5px solid var(--border)",
+                borderBottom: "0.5px solid var(--border)",
+              }}
+            >
+              {providers.map(
+                (
+                  provider: {
+                    id: string;
+                    name: string;
+                    status: string;
+                    baseUrl: string;
+                    type: string;
+                    enabled?: boolean;
+                  },
+                  idx: number,
+                ) => {
+                  const providerModels = models.filter(
+                    (m: { providerId: string; enabled: boolean }) => m.providerId === provider.id,
+                  );
+                  const activeModels = providerModels.filter(
+                    (m: { enabled: boolean }) => m.enabled,
+                  );
+                  const isConnected =
+                    provider.status === "active" || provider.status === "connected";
+                  const isError = provider.status === "error";
+                  const isDisabled = provider.enabled === false;
+                  return (
+                    <button
+                      key={provider.id}
+                      onClick={() => push("ProviderEdit", { editId: provider.id })}
+                      className={`flex w-full items-center gap-4 px-4 py-3 text-left transition-colors active:bg-black/5 ${isDisabled ? "opacity-50" : ""}`}
+                      style={{
+                        borderBottom:
+                          idx < providers.length - 1 ? "0.5px solid var(--border)" : "none",
+                      }}
+                    >
+                      <div className="relative flex-shrink-0">
+                        <div
+                          className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white"
+                          style={{ backgroundColor: getAvatarProps(provider.name).color }}
+                        >
+                          {getAvatarProps(provider.name).initials}
+                        </div>
+                        <div
+                          className="absolute right-0 bottom-0 h-3 w-3 rounded-full border-2"
+                          style={{
+                            borderColor: "var(--background)",
+                            backgroundColor: isConnected
+                              ? "var(--success)"
+                              : isError
+                                ? "var(--destructive)"
+                                : "var(--border)",
+                          }}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-foreground truncate text-[16px] font-medium">
+                          {provider.name}
+                        </p>
+                        <p className="text-muted-foreground truncate text-[13px]">
+                          {t("providers.modelsCount", {
+                            total: providerModels.length,
+                            active: activeModels.length,
+                          })}
+                        </p>
+                      </div>
+                      <IoChevronForward
+                        size={18}
+                        color="var(--muted-foreground)"
+                        style={{ opacity: 0.3 }}
+                      />
+                    </button>
+                  );
+                },
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </AppScreen>
+  );
+};
+
+// ══════════════════════════════════════════
+// Activity: Provider Edit
+// ══════════════════════════════════════════
+const ProviderEdit: ActivityComponentType<{ editId?: string }> = ({ params }) => {
+  const { t } = useTranslation();
+  const { pop } = _useFlow();
+  const { confirm } = useConfirm();
+  const deleteProvider = useProviderStore((s) => s.deleteProvider);
+  useEffect(() => {
+    _stackDepth++;
+    return () => {
+      _stackDepth--;
+    };
+  }, []);
+
+  return (
+    <AppScreen
+      appBar={{
+        title: params.editId
+          ? t("settings.editProvider", { defaultValue: "Edit Provider" })
+          : t("settings.addProvider"),
+        renderRight: params.editId
+          ? () => (
+              <button
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: t("common.areYouSure"),
+                    description: t("providers.deleteConfirm", { name: "" }),
+                    destructive: true,
+                  });
+                  if (ok) {
+                    deleteProvider(params.editId!);
+                    pop();
+                  }
+                }}
+                className="p-2 active:opacity-60"
+              >
+                <IoTrashOutline size={18} color="var(--destructive)" />
+              </button>
+            )
+          : undefined,
+      }}
+    >
+      <div className="h-full overflow-y-auto">
+        <ProviderEditPage editId={params.editId} onClose={() => pop()} />
+      </div>
+    </AppScreen>
+  );
+};
+
+// ══════════════════════════════════════════
+// Activity: MCP Tools
+// ══════════════════════════════════════════
+const McpTools: ActivityComponentType = () => {
+  const { t } = useTranslation();
+  const { push, pop } = _useFlow();
+  useEffect(() => {
+    _stackDepth++;
+    return () => {
+      _stackDepth--;
+    };
+  }, []);
+
+  const onPush = (page: { id: string }) => {
+    const match = page.id.match(/^mcp-edit-(.+)$/);
+    if (match) {
+      push("McpServerEdit", { serverId: match[1] });
+    } else {
+      push("McpServerEdit", {});
+    }
+  };
+
+  return (
+    <AppScreen appBar={{ title: t("settings.mcpTools") }}>
+      <McpPage onPush={onPush as any} onPop={() => pop()} />
+    </AppScreen>
+  );
+};
+
+// ══════════════════════════════════════════
+// Activity: MCP Server Edit
+// ══════════════════════════════════════════
+const McpServerEdit: ActivityComponentType<{ serverId?: string }> = ({ params }) => {
+  const { t } = useTranslation();
+  const { pop } = _useFlow();
+  const servers = useMcpStore((s) => s.servers) as McpServerConfig[];
+  useEffect(() => {
+    _stackDepth++;
+    return () => {
+      _stackDepth--;
+    };
+  }, []);
+
+  const server = params.serverId ? servers.find((s) => s.id === params.serverId) : undefined;
+
+  return (
+    <AppScreen appBar={{ title: server ? server.name : t("personas.addTool") }}>
+      <McpServerForm server={server} onClose={() => pop()} />
+    </AppScreen>
+  );
+};
+
+// ══════════════════════════════════════════
+// Activity: STT Settings
+// ══════════════════════════════════════════
+const SttSettings: ActivityComponentType = () => {
+  const { t } = useTranslation();
+  useEffect(() => {
+    _stackDepth++;
+    return () => {
+      _stackDepth--;
+    };
+  }, []);
+
+  return (
+    <AppScreen appBar={{ title: t("settings.sttProvider") }}>
+      <SttSettingsPage />
+    </AppScreen>
+  );
+};
+
+// ══════════════════════════════════════════
+// Stackflow Configuration
+// ══════════════════════════════════════════
+const result = stackflow({
+  transitionDuration: 250,
+  activities: {
+    Home,
+    ChatDetail,
+    AddMember,
+    IdentityNew,
+    IdentityEdit,
+    ProvidersList,
+    ProviderEdit,
+    McpTools,
+    McpServerEdit,
+    SttSettings,
+  },
+  plugins: [
+    basicRendererPlugin(),
+    basicUIPlugin({
+      theme: "cupertino",
+      appBar: {
+        minSafeAreaInsetTop: "0px",
+      },
+    }),
+  ],
+  initialActivity: () => "Home",
+});
+
+_useFlow = result.useFlow;
+const MobileStackComponent = result.Stack;
+
+// ══════════════════════════════════════════
+// Exported Component
+// ══════════════════════════════════════════
+export function MobileStack() {
+  return <MobileStackComponent />;
+}

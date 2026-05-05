@@ -1,0 +1,159 @@
+import { useCallback, useMemo, useState } from "react";
+import { useConversations, useMessages } from "./useDatabase";
+import { useProviderStore } from "../stores/provider-store";
+import { useIdentityStore } from "../stores/identity-store";
+import { useChatStore, type ChatState } from "../stores/chat-store";
+import type { Conversation, ConversationParticipant, Identity, Message, Model } from "../types";
+import type { SelectedMember } from "../components/shared/AddMemberPicker";
+type ChatStoreState = ReturnType<typeof useChatStore.getState>;
+
+export type ModelPickerMode = "add" | "switch";
+
+export function useChatPanelState(conversationId: string): {
+  conversations: Conversation[];
+  messages: Message[];
+  conv: Conversation | undefined;
+
+  identities: Identity[];
+  getModelById: (id: string) => Model | undefined;
+  getIdentityById: (id: string) => Identity | undefined;
+
+  clearConversationMessages: ChatState["clearConversationMessages"];
+  updateParticipantIdentity: ChatState["updateParticipantIdentity"];
+  updateParticipantModel: ChatState["updateParticipantModel"];
+  updateParticipantReasoningEffort: ChatState["updateParticipantReasoningEffort"];
+  addParticipant: ChatState["addParticipant"];
+  addParticipants: ChatState["addParticipants"];
+  removeParticipant: ChatState["removeParticipant"];
+  duplicateConversation: ChatState["duplicateConversation"];
+
+  isGroup: boolean;
+  currentParticipant: ConversationParticipant | null;
+  model: Model | null;
+  activeIdentity: Identity | null;
+
+  showIdentityPanel: boolean;
+  setShowIdentityPanel: React.Dispatch<React.SetStateAction<boolean>>;
+  showParticipants: boolean;
+  setShowParticipants: React.Dispatch<React.SetStateAction<boolean>>;
+  showModelPicker: boolean;
+  setShowModelPicker: React.Dispatch<React.SetStateAction<boolean>>;
+  modelPickerMode: ModelPickerMode;
+  setModelPickerMode: React.Dispatch<React.SetStateAction<ModelPickerMode>>;
+  isExporting: boolean;
+  setIsExporting: React.Dispatch<React.SetStateAction<boolean>>;
+
+  showAddMemberPicker: boolean;
+  setShowAddMemberPicker: React.Dispatch<React.SetStateAction<boolean>>;
+
+  handleModelPickerSelect: (modelId: string) => void;
+  handleMultiModelSelect: (modelIds: string[]) => void;
+  handleAddMembers: (members: SelectedMember[]) => void;
+} {
+  const conversations = useConversations();
+  const activeBranchId = useChatStore((s: ChatStoreState) => s.activeBranchId);
+  const messages = useMessages(conversationId, activeBranchId);
+
+  const conv = useMemo(
+    () => (conversations ?? []).find((c: Conversation) => c.id === conversationId),
+    [conversations, conversationId],
+  );
+
+  const getModelById = useProviderStore((s) => s.getModelById);
+  const getIdentityById = useIdentityStore((s) => s.getIdentityById);
+  const identities = useIdentityStore((s) => s.identities);
+
+  const clearConversationMessages = useChatStore((s: ChatState) => s.clearConversationMessages);
+  const updateParticipantIdentity = useChatStore((s: ChatState) => s.updateParticipantIdentity);
+  const updateParticipantModel = useChatStore((s: ChatState) => s.updateParticipantModel);
+  const updateParticipantReasoningEffort = useChatStore((s: ChatState) => s.updateParticipantReasoningEffort);
+  const addParticipant = useChatStore((s: ChatState) => s.addParticipant);
+  const addParticipants = useChatStore((s: ChatState) => s.addParticipants);
+  const removeParticipant = useChatStore((s: ChatState) => s.removeParticipant);
+  const duplicateConversation = useChatStore((s: ChatState) => s.duplicateConversation);
+
+  const [showIdentityPanel, setShowIdentityPanel] = useState(false);
+  const [showParticipants, setShowParticipants] = useState(false);
+  const [showModelPicker, setShowModelPicker] = useState(false);
+  const [modelPickerMode, setModelPickerMode] = useState<ModelPickerMode>("switch");
+  const [isExporting, setIsExporting] = useState(false);
+  const [showAddMemberPicker, setShowAddMemberPicker] = useState(false);
+
+  const isGroup = conv?.type === "group";
+  const currentParticipant = conv?.participants[0] ?? null;
+  const model = currentParticipant ? (getModelById(currentParticipant.modelId) ?? null) : null;
+  const activeIdentity = currentParticipant?.identityId
+    ? (getIdentityById(currentParticipant.identityId) ?? null)
+    : null;
+
+  const handleModelPickerSelect = useCallback(
+    (modelId: string) => {
+      setShowModelPicker(false);
+      if (modelPickerMode === "switch" && currentParticipant) {
+        updateParticipantModel(conversationId, currentParticipant.id, modelId);
+      } else {
+        addParticipant(conversationId, modelId);
+      }
+    },
+    [addParticipant, conversationId, currentParticipant, modelPickerMode, updateParticipantModel],
+  );
+
+  const handleMultiModelSelect = useCallback(
+    (modelIds: string[]) => {
+      setShowModelPicker(false);
+      for (const modelId of modelIds) {
+        addParticipant(conversationId, modelId);
+      }
+    },
+    [addParticipant, conversationId],
+  );
+
+  const handleAddMembers = useCallback(
+    (members: SelectedMember[]) => {
+      addParticipants(conversationId, members);
+    },
+    [addParticipants, conversationId],
+  );
+
+  return {
+    conversations,
+    messages,
+    conv,
+
+    identities,
+    getModelById,
+    getIdentityById,
+
+    clearConversationMessages,
+    updateParticipantIdentity,
+    updateParticipantModel,
+    updateParticipantReasoningEffort,
+    addParticipant,
+    addParticipants,
+    removeParticipant,
+    duplicateConversation,
+
+    isGroup: !!isGroup,
+    currentParticipant,
+    model,
+    activeIdentity,
+
+    showIdentityPanel,
+    setShowIdentityPanel,
+    showParticipants,
+    setShowParticipants,
+    showModelPicker,
+    setShowModelPicker,
+    modelPickerMode,
+    setModelPickerMode,
+    isExporting,
+    setIsExporting,
+
+    showAddMemberPicker,
+    setShowAddMemberPicker,
+
+    handleModelPickerSelect,
+    handleMultiModelSelect,
+    handleAddMembers,
+  };
+}
