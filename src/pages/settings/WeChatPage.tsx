@@ -52,39 +52,51 @@ export function WeChatPage({ onClose }: { onClose: () => void }) {
     };
   }, [fetchStatus]);
 
-  const handleLogin = async () => {
+  const handleToggle = async () => {
     setLoading(true);
     setError(null);
     setQrUrl(null);
-    try {
-      const resp = await appFetch(`${BRIDGE_BASE}/wechat/login`, {
-        method: "POST",
-      });
-      const data = await resp.json();
-      if (data.success) {
-        setQrUrl(`${BRIDGE_BASE}/wechat/qr?_t=${Date.now()}`);
-        // 轮询等登录成功
-        if (pollRef.current) clearInterval(pollRef.current);
-        pollRef.current = setInterval(async () => {
-          const s = await fetchStatus();
-          if (s?.connected) {
-            if (pollRef.current) clearInterval(pollRef.current);
-            pollRef.current = null;
-            setQrUrl(null);
-          }
-        }, 2000);
-      } else {
-        setError(data.message || "登录失败");
+
+    if (status?.connected || status?.logged_in) {
+      // 关闭微信
+      try {
+        const resp = await appFetch(`${BRIDGE_BASE}/wechat/disable`, { method: "POST" });
+        const data = await resp.json();
+        if (data.success) {
+          await fetchStatus();
+        } else {
+          setError(data.message || "关闭失败");
+        }
+      } catch {
+        setError("无法连接到 Bridge");
       }
-    } catch (e) {
-      setError("无法连接到 Bridge (localhost:5050)，请确认桥梁已启动");
+    } else {
+      // 开启微信
+      try {
+        const resp = await appFetch(`${BRIDGE_BASE}/wechat/enable`, { method: "POST" });
+        const data = await resp.json();
+        if (data.success) {
+          if (data.qr_url) {
+            setQrUrl(`${BRIDGE_BASE}/wechat/qr?_t=${Date.now()}`);
+          }
+          // 轮询等连接成功
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = setInterval(async () => {
+            const s = await fetchStatus();
+            if (s?.connected) {
+              if (pollRef.current) clearInterval(pollRef.current);
+              pollRef.current = null;
+              setQrUrl(null);
+            }
+          }, 2000);
+        } else {
+          setError(data.message || "开启失败");
+        }
+      } catch {
+        setError("无法连接到 Bridge (localhost:5050)，请确认桥梁已启动");
+      }
     }
     setLoading(false);
-  };
-
-  const handleDisconnect = async () => {
-    // 停止 bridge 的 wechat（通过重启 bridge 实现，或直接清凭证）
-    setError("请关闭 bridge 窗口重新启动以断开微信连接");
   };
 
   if (!status) {
@@ -103,7 +115,7 @@ export function WeChatPage({ onClose }: { onClose: () => void }) {
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <h2 className="text-foreground text-lg font-bold">微信连接</h2>
+        <h2 className="text-foreground text-lg font-bold">微信</h2>
       </div>
 
       {/* 状态卡片 */}
@@ -112,13 +124,13 @@ export function WeChatPage({ onClose }: { onClose: () => void }) {
         style={{
           backgroundColor: status.connected
             ? "rgba(34,197,94,0.1)"
-            : status.logged_in
+            : status.enabled && !status.connected
               ? "rgba(234,179,8,0.1)"
               : "rgba(239,68,68,0.1)",
           border: `1px solid ${
             status.connected
               ? "rgba(34,197,94,0.2)"
-              : status.logged_in
+              : status.enabled && !status.connected
                 ? "rgba(234,179,8,0.2)"
                 : "rgba(239,68,68,0.2)"
           }`,
@@ -130,37 +142,35 @@ export function WeChatPage({ onClose }: { onClose: () => void }) {
             style={{
               backgroundColor: status.connected
                 ? "#22c55e"
-                : status.logged_in
+                : status.enabled && !status.connected
                   ? "#eab308"
-                  : "#ef4444",
+                  : "#6b7280",
             }}
           />
-          <span className="text-foreground font-medium">{status.message}</span>
+          <span className="text-foreground font-medium">
+            {status.connected
+              ? "已连接"
+              : status.enabled
+                ? "连接中..."
+                : "未启用"}
+          </span>
         </div>
         <p className="text-muted-foreground mt-2 text-sm">
           {status.connected
             ? "微信已连接，好友消息将由 AI 自动回复"
-            : status.logged_in
-              ? "已登录但连接中，等待消息通道建立"
-              : status.enabled
-                ? "请点击下方按钮扫码登录微信"
-                : "桥梁未以 --wechat 模式启动"}
+            : status.enabled
+              ? "正在建立消息通道，请在手机上确认..."
+              : "点击下方开关开启微信，首次需要扫码登录"}
         </p>
-      </div>
-
-      {/* 二维码 */}
-      {qrUrl && (
-        <div className="mb-6 flex flex-col items-center gap-3">
-          <p className="text-muted-foreground text-sm">请用手机微信扫描下方二维码</p>
-          <div
-            className="flex items-center justify-center rounded-xl p-4"
-            style={{ backgroundColor: "white" }}
-          >
-            <img src={qrUrl} alt="微信登录二维码" className="h-48 w-48" />
+        {qrUrl && (
+          <div className="mt-4 flex flex-col items-center gap-2">
+            <p className="text-muted-foreground text-sm">请用手机微信扫描二维码</p>
+            <div className="flex items-center justify-center rounded-xl bg-white p-3">
+              <img src={qrUrl} alt="微信登录二维码" className="h-44 w-44" />
+            </div>
           </div>
-          <p className="text-muted-foreground text-xs">二维码有效期约 8 分钟</p>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* 错误提示 */}
       {error && (
@@ -176,35 +186,26 @@ export function WeChatPage({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
-      {/* 操作按钮 */}
+      {/* 开关按钮 */}
       <div className="mt-auto flex flex-col gap-3">
-        {!status.connected && (
-          <button
-            onClick={handleLogin}
-            disabled={loading || !status.enabled}
-            className="w-full rounded-xl py-3 font-medium text-white transition-opacity disabled:opacity-50"
-            style={{ backgroundColor: "var(--primary)" }}
-          >
-            {loading ? "连接中..." : "扫描二维码登录微信"}
-          </button>
-        )}
-        {!status.enabled && (
-          <div
-            className="rounded-lg px-4 py-3 text-sm"
-            style={{
-              backgroundColor: "rgba(239,68,68,0.1)",
-              color: "#ef4444",
-              border: "1px solid rgba(239,68,68,0.2)",
-            }}
-          >
-            请使用 <code className="rounded bg-black/10 px-1">local-ai-agent.exe --wechat</code>{" "}
-            启动桥梁以启用微信功能
-          </div>
-        )}
         <button
-          onClick={onClose}
-          className="text-muted-foreground w-full py-2 text-sm"
+          onClick={handleToggle}
+          disabled={loading}
+          className="w-full rounded-xl py-3 font-medium text-white transition-opacity disabled:opacity-50"
+          style={{
+            backgroundColor: status.connected || status.logged_in ? "#ef4444" : "var(--primary)",
+          }}
         >
+          {loading
+            ? "处理中..."
+            : status.connected || status.logged_in
+              ? "关闭微信连接"
+              : "开启微信"}
+        </button>
+        <p className="text-muted-foreground text-center text-xs">
+          开启后配置即保存，下次启动 bridge 自动连接
+        </p>
+        <button onClick={onClose} className="text-muted-foreground py-2 text-sm">
           返回
         </button>
       </div>

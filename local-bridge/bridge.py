@@ -102,9 +102,37 @@ DEFAULT_OLLAMA_MODEL = OLLAMA_MODELS[0] if OLLAMA_MODELS else "gemma3:4b"
 
 # 支持命令行参数
 # --model 指定默认模型
-# --wechat 启用微信监听
+# --wechat 启用微信监听（也可通过 API 开关）
 ENABLE_WECHAT = False
 WECHAT_BOT = None
+
+
+# ========================================
+# 持久化配置
+# ========================================
+
+def _config_path():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "bridge_config.json")
+
+
+def _load_config():
+    path = _config_path()
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_config(updates: dict):
+    path = _config_path()
+    cfg = _load_config()
+    cfg.update(updates)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+
 
 i = 1
 while i < len(sys.argv):
@@ -117,6 +145,13 @@ while i < len(sys.argv):
         i += 1
     else:
         i += 1
+
+# 从配置文件读取微信开关
+if not ENABLE_WECHAT:
+    cfg = _load_config()
+    if cfg.get("wechat_enabled"):
+        ENABLE_WECHAT = True
+        print(f"📱 微信功能已从配置启用 (bridge_config.json)")
 
 # ========================================
 # 智能体人设
@@ -615,6 +650,54 @@ def wechat_send():
     return jsonify({"success": ok})
 
 
+@app.route("/wechat/enable", methods=["POST"])
+def wechat_enable():
+    """一键开启微信功能（保存配置 + 启动监听）"""
+    global ENABLE_WECHAT, WECHAT_BOT
+    # 保存配置，下次启动自动生效
+    _save_config({"wechat_enabled": True})
+    ENABLE_WECHAT = True
+
+    # 如果 Bot 未初始化，初始化并启动
+    if not WECHAT_BOT:
+        from wechat_bot import WeChatBot, load_creds
+        creds = load_creds()
+        bot = WeChatBot(ai_respond=_wechat_ai_respond)
+        if creds.get("token"):
+            WECHAT_BOT = bot
+            bot.start()
+            return jsonify({"success": True, "message": "微信已启动（已登录）", "connected": True})
+        else:
+            # 未登录，需要扫码
+            qr_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wechat_qr.png")
+            def _async_login():
+                global WECHAT_BOT
+                b = WeChatBot(ai_respond=_wechat_ai_respond)
+                if b.login(save_qr_path=qr_path):
+                    WECHAT_BOT = b
+                    b.start()
+            import threading
+            t = threading.Thread(target=_async_login, daemon=True)
+            t.start()
+            return jsonify({"success": True, "message": "请扫码登录", "qr_url": f"http://localhost:{BRIDGE_PORT}/wechat/qr"})
+    elif not WECHAT_BOT.is_connected and WECHAT_BOT.is_logged_in:
+        WECHAT_BOT.start()
+        return jsonify({"success": True, "message": "微信监听已启动", "connected": True})
+    else:
+        return jsonify({"success": True, "message": "微信已运行", "connected": WECHAT_BOT.is_connected})
+
+
+@app.route("/wechat/disable", methods=["POST"])
+def wechat_disable():
+    """一键关闭微信功能"""
+    global ENABLE_WECHAT
+    _save_config({"wechat_enabled": False})
+    ENABLE_WECHAT = False
+    if WECHAT_BOT:
+        WECHAT_BOT.stop()
+    return jsonify({"success": True, "message": "微信已关闭"})
+
+
 # ========================================
 # 启动
 # ========================================
@@ -654,15 +737,13 @@ if __name__ == "__main__":
         print(f"\n📱 === 微信 iLink Bot ===")
         creds = load_creds()
         if creds.get("token"):
-            print(f"  ✅ 发现已保存的微信凭证 (account_id: {creds.get('account_id', '?')})")
+            print(f"  ✅ 已登录 (account_id: {creds.get('account_id', '?')})")
             bot = WeChatBot(ai_respond=_wechat_ai_respond)
             WECHAT_BOT = bot
             bot.start()
         else:
-            print(f"  ⚠️ 未登录微信，请 POST /wechat/login 扫码登录")
-            print(f"     curl -X POST http://localhost:{BRIDGE_PORT}/wechat/login")
-        print(f"  📋 状态API: http://localhost:{BRIDGE_PORT}/wechat/status")
-        print(f"  🖼️  二维码: http://localhost:{BRIDGE_PORT}/wechat/qr")
+            print(f"  ⚠️ 未登录，请在映创AI助手设置中开启微信并扫码")
+        print(f"  📋 在设置 → 连接 → 微信 中管理")
 
     print(f"⚠️ 确保 Ollama 已启动（当前端口 {OLLAMA_URL}）")
     app.run(host="0.0.0.0", port=BRIDGE_PORT, debug=False)
