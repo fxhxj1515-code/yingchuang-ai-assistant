@@ -108,12 +108,7 @@ function loadInitial() {
         capabilities: { vision: false, toolCall: true, reasoning: false, streaming: true },
         capabilitiesVerified: false, maxContextLength: 128000, enabled: true,
       },
-      {
-        id: generateId(), providerId: cloudProvider.id, modelId: "qwen/qwen3-32b",
-        displayName: "Qwen3 32B", avatar: null,
-        capabilities: { vision: false, toolCall: true, reasoning: false, streaming: true },
-        capabilitiesVerified: false, maxContextLength: 128000, enabled: false,
-      },
+
     ];
     models.push(...defaultModels);
 

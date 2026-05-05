@@ -78,9 +78,7 @@
 | 模型 | 供应商 | 说明 |
 |------|--------|------|
 | DeepSeek Chat | 映创云 | 高性能通用模型 |
-| DeepSeek Flash | 映创云 | 快速轻量版 |
-| Llama 3.3/3.1 | Groq | 免费高速 |
-| Qwen3 32B | Groq | 免费高速 |
+| DeepSeek V4 Flash | 映创云 | 快速轻量版 |
 
 ---
 
