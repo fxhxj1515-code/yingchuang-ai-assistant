@@ -47,6 +47,34 @@ else:
 BRIDGE_PORT = 5050
 
 # ========================================
+# QClaw 真实服务检测
+# ========================================
+QCLAW_URL = "http://127.0.0.1:28789"
+QCLAW_AVAILABLE = False
+
+def detect_qclaw():
+    """检测真实 QClaw 服务是否在运行"""
+    global QCLAW_AVAILABLE
+    try:
+        resp = requests.get(f"{QCLAW_URL}/v1/models", timeout=3)
+        if resp.status_code == 200:
+            data = resp.json()
+            models = data.get("data", [])
+            if models:
+                QCLAW_AVAILABLE = True
+                print(f"  ✅ 检测到真实 QClaw 服务 ({QCLAW_URL})")
+                print(f"  📋 QClaw 可用模型: {', '.join(m.get('id', m) if isinstance(m, dict) else m for m in models[:5])}")
+                return True
+    except requests.ConnectionError:
+        pass
+    except Exception:
+        pass
+    print("  ⚠️ 未检测到真实 QClaw 服务，将用 Ollama 模拟 qclaw 人设")
+    return False
+
+QCLAW_AVAILABLE = detect_qclaw()
+
+# ========================================
 # 自动检测 Ollama 可用模型
 # ========================================
 
@@ -206,10 +234,15 @@ def get_models():
         {"id": "workbuddy", "object": "model", "created": 1700000001, "owned_by": "local"},
         {"id": "qclaw", "object": "model", "created": 1700000002, "owned_by": "local"},
     ]
-    # 给智能体添加标签
+    # 给智能体添加标签，标记 qclaw 是否真实服务
     for m in models:
         m["tags"] = get_model_tags(m["id"])
         m["recommendation"] = get_model_recommendation(m["id"])
+        if m["id"] == "qclaw":
+            m["real_service"] = QCLAW_AVAILABLE
+            if QCLAW_AVAILABLE:
+                m["tags"].insert(0, "真实服务")
+                m["recommendation"] = "🔗 真实 QClaw 服务"
     # 添加 Ollama 中所有可用模型（去重，避免和上面冲突）
     seen = {m["id"] for m in models}
     for i, m in enumerate(OLLAMA_MODELS):
@@ -260,8 +293,8 @@ def call_hermes(messages, user_message):
             text=True,
             timeout=120,
         )
-        output = result.stdout.strip()
-        stderr_output = result.stderr.strip()
+        output = (result.stdout or "").strip()
+        stderr_output = (result.stderr or "").strip()
 
         # 如果有 stderr，打印到服务端日志
         if stderr_output:
@@ -324,6 +357,49 @@ def call_ollama(model_id, messages):
 
 
 # ========================================
+# 调用真实 QClaw 服务（Windows）
+# ========================================
+
+def call_qclaw(messages):
+    """调用真实 QClaw 服务（http://127.0.0.1:28789）"""
+    if not QCLAW_AVAILABLE:
+        return None  # 由外层回退到 Ollama 模拟
+    try:
+        # 动态获取 QClaw 支持的模型名，优先请求列表第一个
+        qclaw_model = "qclaw"  # 默认
+        try:
+            info = requests.get(f"{QCLAW_URL}/v1/models", timeout=3)
+            if info.status_code == 200:
+                data = info.json()
+                all_models = data.get("data", [])
+                if all_models:
+                    first = all_models[0]
+                    qclaw_model = first.get("id") if isinstance(first, dict) else first
+        except Exception:
+            pass
+
+        # 直接转发消息，不带 system prompt — QClaw 自己有
+        resp = requests.post(
+            f"{QCLAW_URL}/v1/chat/completions",
+            json={
+                "model": qclaw_model,
+                "messages": messages,
+                "stream": False,
+            },
+            timeout=120,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            return data["choices"][0]["message"]["content"]
+        else:
+            return f"(QClaw 返回错误: {resp.status_code})"
+    except requests.ConnectionError:
+        return "⚠️ QClaw 服务连接失败。请检查 QClaw 是否在运行。"
+    except Exception as e:
+        return f"(QClaw 调用失败: {str(e)})"
+
+
+# ========================================
 # API: GET /v1/models
 # ========================================
 
@@ -373,8 +449,11 @@ def chat_completions():
     # 根据模型选择调用方式
     if model == "hermes":
         response_text = call_hermes(ollama_messages, user_message)
+    elif model == "qclaw" and QCLAW_AVAILABLE:
+        # 走真实 QClaw 服务（不带 system prompt，QClaw 自己有）
+        response_text = call_qclaw(messages)
     else:
-        # workbuddy / qclaw / 所有 Ollama 模型都走 Ollama
+        # workbuddy / qclaw(模拟) / 所有 Ollama 模型都走 Ollama
         response_text = call_ollama(model, ollama_messages)
 
     # 返回 OpenAI 兼容格式
@@ -419,7 +498,7 @@ if __name__ == "__main__":
         desc = {
             "hermes": "WSL Hermes Agent（真实智能体）",
             "workbuddy": f"Ollama {DEFAULT_OLLAMA_MODEL} + WorkBuddy 人设",
-            "qclaw": f"Ollama {DEFAULT_OLLAMA_MODEL} + QClaw 人设",
+            "qclaw": f"{'🔗 真实 QClaw 服务' if QCLAW_AVAILABLE else f'Ollama {DEFAULT_OLLAMA_MODEL} + QClaw 人设'}",
         }.get(m["id"], f"Ollama 原始模型（{m['id']}）")
         tag_str = ", ".join(m.get("tags", []))
         rec = m.get("recommendation", "")
