@@ -24,7 +24,12 @@ import requests
 import platform
 import sys
 import time
-from flask import Flask, request, jsonify, Response
+import os
+import threading
+from flask import Flask, request, jsonify, Response, send_file
+
+# 微信 iLink Bot 模块
+from wechat_bot import WeChatBot, load_creds
 
 app = Flask(__name__)
 
@@ -95,10 +100,23 @@ def detect_ollama_models():
 OLLAMA_MODELS = detect_ollama_models()
 DEFAULT_OLLAMA_MODEL = OLLAMA_MODELS[0] if OLLAMA_MODELS else "gemma3:4b"
 
-# 支持命令行参数 --model 指定默认模型
-if len(sys.argv) > 1 and sys.argv[1] == "--model" and len(sys.argv) > 2:
-    DEFAULT_OLLAMA_MODEL = sys.argv[2]
-    print(f"📌 手动指定默认模型: {DEFAULT_OLLAMA_MODEL}")
+# 支持命令行参数
+# --model 指定默认模型
+# --wechat 启用微信监听
+ENABLE_WECHAT = False
+WECHAT_BOT = None
+
+i = 1
+while i < len(sys.argv):
+    if sys.argv[i] == "--model" and i + 1 < len(sys.argv):
+        DEFAULT_OLLAMA_MODEL = sys.argv[i + 1]
+        print(f"📌 手动指定默认模型: {DEFAULT_OLLAMA_MODEL}")
+        i += 2
+    elif sys.argv[i] == "--wechat":
+        ENABLE_WECHAT = True
+        i += 1
+    else:
+        i += 1
 
 # ========================================
 # 智能体人设
@@ -481,6 +499,123 @@ def chat_completions():
 
 
 # ========================================
+# 微信 iLink Bot API
+# ========================================
+
+# AI 回复回调（供 WeChatBot 调用）
+def _wechat_ai_respond(text, from_user):
+    """微信消息 → AI 回复"""
+    # 使用映创云 AI（如果连不上回退本地 Ollama）
+    try:
+        ai_url = "https://hwzs.club/api/ai/v1"
+        resp = requests.post(
+            f"{ai_url}/chat/completions",
+            json={
+                "model": "deepseek-chat",
+                "messages": [
+                    {"role": "system", "content": "你是一个AI助手，回答简洁直接。"},
+                    {"role": "user", "content": text},
+                ],
+                "stream": False,
+            },
+            timeout=60,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            return data["choices"][0]["message"]["content"]
+    except Exception:
+        pass
+
+    # 回退本地 Ollama
+    try:
+        resp = requests.post(
+            f"{OLLAMA_URL}/v1/chat/completions",
+            json={
+                "model": DEFAULT_OLLAMA_MODEL,
+                "messages": [
+                    {"role": "system", "content": "你是一个AI助手，回答简洁直接。"},
+                    {"role": "user", "content": text},
+                ],
+                "stream": False,
+            },
+            timeout=60,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            return data["choices"][0]["message"]["content"]
+    except Exception:
+        pass
+
+    return "（AI 暂时无法回复，请稍后再试）"
+
+
+@app.route("/wechat/status")
+def wechat_status():
+    """获取微信连接状态"""
+    if not ENABLE_WECHAT:
+        return jsonify({"enabled": False, "connected": False, "message": "微信功能未启用（启动时加 --wechat 参数）"})
+    if not WECHAT_BOT:
+        return jsonify({"enabled": True, "connected": False, "message": "微信 Bot 未初始化"})
+    return jsonify({
+        "enabled": True,
+        "connected": WECHAT_BOT.is_connected,
+        "logged_in": WECHAT_BOT.is_logged_in,
+        "message": "已连接" if WECHAT_BOT.is_connected else ("已登录" if WECHAT_BOT.is_logged_in else "未登录"),
+    })
+
+
+@app.route("/wechat/qr")
+def wechat_qr():
+    """获取微信登录二维码图片"""
+    qr_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wechat_qr.png")
+    if os.path.exists(qr_path):
+        return send_file(qr_path, mimetype="image/png")
+    return jsonify({"error": "二维码不存在，请先调用 /wechat/login"}), 404
+
+
+@app.route("/wechat/login", methods=["POST"])
+def wechat_login():
+    """触发微信扫码登录"""
+    global WECHAT_BOT
+    if not ENABLE_WECHAT:
+        return jsonify({"success": False, "message": "微信功能未启用（启动时加 --wechat 参数）"}), 400
+
+    if WECHAT_BOT and WECHAT_BOT.is_logged_in:
+        return jsonify({"success": True, "message": "已登录，无需重新扫码", "connected": WECHAT_BOT.is_connected})
+
+    qr_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wechat_qr.png")
+
+    def _async_login():
+        global WECHAT_BOT
+        bot = WeChatBot(ai_respond=_wechat_ai_respond)
+        if bot.login(save_qr_path=qr_path):
+            WECHAT_BOT = bot
+            bot.start()
+            print("  ✅ WeChat: 登录成功，消息监听已启动")
+        else:
+            print("  ❌ WeChat: 登录失败")
+
+    t = threading.Thread(target=_async_login, daemon=True)
+    t.start()
+
+    return jsonify({"success": True, "message": "请在浏览器打开 /wechat/qr 查看二维码，或用手机微信扫码"})
+
+
+@app.route("/wechat/send", methods=["POST"])
+def wechat_send():
+    """发送微信消息（调试用）"""
+    if not WECHAT_BOT or not WECHAT_BOT.is_connected:
+        return jsonify({"success": False, "message": "微信未连接"}), 400
+    data = request.get_json()
+    to_user = data.get("to", "")
+    text = data.get("text", "")
+    if not to_user or not text:
+        return jsonify({"success": False, "message": "缺少 to 或 text 参数"}), 400
+    ok = WECHAT_BOT.send_text(to_user, text)
+    return jsonify({"success": ok})
+
+
+# ========================================
 # 启动
 # ========================================
 
@@ -513,5 +648,21 @@ if __name__ == "__main__":
     print(f"   Key:  留空")
     print(f"")
     print(f"💡 桥梁已内置在 映创AI助手 安装包中")
+    
+    # 微信模式
+    if ENABLE_WECHAT:
+        print(f"\n📱 === 微信 iLink Bot ===")
+        creds = load_creds()
+        if creds.get("token"):
+            print(f"  ✅ 发现已保存的微信凭证 (account_id: {creds.get('account_id', '?')})")
+            bot = WeChatBot(ai_respond=_wechat_ai_respond)
+            WECHAT_BOT = bot
+            bot.start()
+        else:
+            print(f"  ⚠️ 未登录微信，请 POST /wechat/login 扫码登录")
+            print(f"     curl -X POST http://localhost:{BRIDGE_PORT}/wechat/login")
+        print(f"  📋 状态API: http://localhost:{BRIDGE_PORT}/wechat/status")
+        print(f"  🖼️  二维码: http://localhost:{BRIDGE_PORT}/wechat/qr")
+
     print(f"⚠️ 确保 Ollama 已启动（当前端口 {OLLAMA_URL}）")
     app.run(host="0.0.0.0", port=BRIDGE_PORT, debug=False)
