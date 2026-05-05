@@ -79,6 +79,49 @@ function loadInitial() {
   const providers = kvStore.getObject<Provider[]>(PROVIDERS_KEY) ?? [];
   const rawModels = kvStore.getObject<any[]>(MODELS_KEY) ?? [];
   const models: Model[] = rawModels.map(normalizeModel);
+
+  // 首次启动：自动添加默认云供应商
+  if (providers.length === 0) {
+    const cloudProvider: Provider = {
+      id: "yingchuang-cloud",
+      name: "映创云AI",
+      type: "openai",
+      baseUrl: "https://hwzs.club/api/ai/v1",
+      apiKey: "",
+      customHeaders: [],
+      enabled: true,
+      status: "disconnected" as ProviderStatus,
+      createdAt: new Date().toISOString(),
+    };
+    providers.push(cloudProvider);
+
+    const defaultModels: Model[] = [
+      {
+        id: generateId(), providerId: cloudProvider.id, modelId: "deepseek-chat",
+        displayName: "DeepSeek", avatar: null,
+        capabilities: { vision: false, toolCall: true, reasoning: false, streaming: true },
+        capabilitiesVerified: false, maxContextLength: 128000, enabled: true,
+      },
+      {
+        id: generateId(), providerId: cloudProvider.id, modelId: "deepseek-v4-flash",
+        displayName: "DeepSeek V4 Flash", avatar: null,
+        capabilities: { vision: false, toolCall: true, reasoning: false, streaming: true },
+        capabilitiesVerified: false, maxContextLength: 128000, enabled: true,
+      },
+      {
+        id: generateId(), providerId: cloudProvider.id, modelId: "qwen/qwen3-32b",
+        displayName: "Qwen3 32B", avatar: null,
+        capabilities: { vision: false, toolCall: true, reasoning: false, streaming: true },
+        capabilitiesVerified: false, maxContextLength: 128000, enabled: false,
+      },
+    ];
+    models.push(...defaultModels);
+
+    // 立即持久化
+    kvStore.setObject(PROVIDERS_KEY, providers);
+    kvStore.setObject(MODELS_KEY, models);
+  }
+
   return { providers, models };
 }
 
