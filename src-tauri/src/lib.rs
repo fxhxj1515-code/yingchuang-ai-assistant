@@ -1,11 +1,16 @@
 use std::fs;
 use std::path::PathBuf;
 use tauri::Manager;
+use proxy_guard::ProxyState;
 
 #[cfg(not(target_os = "android"))]
 mod mcp_stdio;
 #[cfg(not(target_os = "android"))]
 mod git_cmd;
+#[cfg(not(target_os = "android"))]
+mod bridge_guard;
+mod builtin_tools;
+mod proxy_guard;
 
 #[tauri::command]
 fn check_pending_import(app: tauri::AppHandle) -> Option<String> {
@@ -54,6 +59,7 @@ pub fn run() {
   #[cfg(not(target_os = "android"))]
   let builder = builder
     .manage(mcp_stdio::Sessions::default())
+    .manage(ProxyState::new())
     .invoke_handler(tauri::generate_handler![
       check_pending_import,
       mcp_stdio::mcp_stdio_start,
@@ -61,6 +67,13 @@ pub fn run() {
       mcp_stdio::mcp_stdio_stop,
       mcp_stdio::mcp_stdio_list,
       git_cmd::git_execute,
+      builtin_tools::shell_exec,
+      builtin_tools::read_text_file,
+      builtin_tools::write_text_file,
+      builtin_tools::list_directory,
+      proxy_guard::start_proxy,
+      proxy_guard::stop_proxy,
+      proxy_guard::proxy_status,
     ]);
 
   // Mobile: only register base commands
@@ -77,6 +90,9 @@ pub fn run() {
             .build(),
         )?;
       }
+      // 启动 bridge 守护（桌面版）
+      #[cfg(not(target_os = "android"))]
+      bridge_guard::start_bridge_guard(&app.handle());
       Ok(())
     })
     .run(tauri::generate_context!())

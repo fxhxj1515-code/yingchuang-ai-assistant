@@ -31,7 +31,9 @@
       "active": true,
       "dialog": true,
       "dangerousInsecure": true,
-      "endpoints": ["https://i.hwzs.club/downloads/latest.json"],
+      "endpoints": [
+        "https://i.hwzs.club/downloads/latest.json"
+      ],
       "windows": {
         "installMode": "passive"
       }
@@ -40,18 +42,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "resources": {
-      "../local-bridge/README.md": "local-bridge/",
-      "../local-bridge/bridge.py": "local-bridge/",
-      "../local-bridge/wechat_bot.py": "local-bridge/"
-    },
+    "resources": ["clash-meta.exe", "local-ai-agent.exe", "bridge.py", "wechat_bot.py"],
     "windows": {
       "wix": {
         "language": "zh-CN"
       }
-    },
-    "macOS": {
-      "entitlements": "Entitlements.plist"
     },
     "icon": [
       "icons/32x32.png",
