@@ -226,6 +226,7 @@ export function DesktopLayout() {
               setCurrentConversation(convId);
               setActiveSection("chats");
             }}
+            onNavigateToStats={() => setActiveSection("stats")}
           />
         )}
       </div>

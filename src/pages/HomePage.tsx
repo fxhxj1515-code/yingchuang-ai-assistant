@@ -18,6 +18,8 @@ import {
   FileText,
   Code,
   Lightbulb,
+  BarChart3,
+  TrendingUp,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@web/components/ui/button";
@@ -32,6 +34,7 @@ interface HomePageProps {
   onNewChat: () => void;
   onCreateGroup: () => void;
   onNavigateToChat?: (convId: string) => void;
+  onNavigateToStats?: () => void;
 }
 
 /**
@@ -95,7 +98,7 @@ const featureCards = [
   },
 ];
 
-export function HomePage({ onNewChat, onCreateGroup, onNavigateToChat }: HomePageProps) {
+export function HomePage({ onNewChat, onCreateGroup, onNavigateToChat, onNavigateToStats }: HomePageProps) {
   const { t } = useTranslation();
   const { planStatus, overseasStatus } = useMockStatus();
   const navigate = useNavigate();
@@ -229,6 +232,55 @@ export function HomePage({ onNewChat, onCreateGroup, onNavigateToChat }: HomePag
           </div>
         </div>
       )}
+
+      {/* 数据摘要区 C5 */}
+      <div className="mt-8 w-full">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-foreground text-sm font-semibold">数据摘要</h3>
+          {onNavigateToStats && (
+            <button
+              onClick={onNavigateToStats}
+              className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors"
+            >
+              查看完整数据 <ArrowRight className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-xl border border-border bg-card p-3">
+            <div className="text-muted-foreground mb-1 text-xs">今日对话</div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-xl font-bold">--</span>
+              <span className="text-muted-foreground text-xs">次</span>
+            </div>
+            <div className="mt-1 flex items-center gap-1">
+              <TrendingUp className="h-3 w-3 text-green-500" />
+              <span className="text-green-500 text-xs">--</span>
+            </div>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-3">
+            <div className="text-muted-foreground mb-1 text-xs">今日Token</div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-xl font-bold">--</span>
+              <span className="text-muted-foreground text-xs">K</span>
+            </div>
+            <div className="mt-1 flex items-center gap-1">
+              <Zap className="h-3 w-3 text-amber-500" />
+              <span className="text-muted-foreground text-xs">本月累计 | 查看</span>
+            </div>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-3">
+            <div className="text-muted-foreground mb-1 text-xs">最常用模型</div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-xl font-bold">--</span>
+            </div>
+            <div className="mt-1 flex items-center gap-1">
+              <MessagesSquare className="h-3 w-3 text-blue-500" />
+              <span className="text-muted-foreground text-xs">-- 次调用</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="flex-1" />
       <p className="text-muted-foreground/50 mt-8 text-xs">Talkio v3 · 由映创科技提供</p>
