@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 import {
@@ -23,6 +23,7 @@ import {
   Lightbulb,
   BookOpen,
   BarChart3,
+  X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ModelPicker } from "../shared/ModelPicker";
@@ -85,6 +86,9 @@ export function DesktopLayout() {
   const createConversation = useChatStore((s: ChatState) => s.createConversation);
   const [showCreateGroupPicker, setShowCreateGroupPicker] = useState(false);
   const [showCheatsheet, setShowCheatsheet] = useState(false);
+  const [showShortcutHint, setShowShortcutHint] = useState(
+    () => localStorage.getItem("kb-hint-dismissed") !== "true",
+  );
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem("desktop-sidebar-width");
     return saved ? Math.max(MIN_SIDEBAR, Math.min(MAX_SIDEBAR, Number(saved))) : DEFAULT_SIDEBAR;
@@ -136,7 +140,42 @@ export function DesktopLayout() {
   }, []);
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full relative">
+      {/* Keyboard hint bar */}
+      <AnimatePresence>
+        {showShortcutHint && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            className="absolute bottom-4 left-1/2 z-40 -translate-x-1/2"
+          >
+            <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-2.5 shadow-lg">
+              <span className="text-muted-foreground text-xs">
+                <kbd className="bg-muted rounded-md px-1.5 py-0.5 text-[11px] font-medium">?</kbd>
+                {" "}查看所有快捷键
+              </span>
+              <span className="text-border text-xs">|</span>
+              <span className="text-muted-foreground text-xs">
+                <kbd className="bg-muted rounded-md px-1.5 py-0.5 text-[11px] font-medium">
+                  {typeof navigator !== "undefined" && /Mac/i.test(navigator.platform) ? "⌘" : "Ctrl"}
+                </kbd>
+                +<kbd className="bg-muted rounded-md px-1.5 py-0.5 text-[11px] font-medium">N</kbd>
+                {" "}新建对话
+              </span>
+              <button
+                onClick={() => {
+                  setShowShortcutHint(false);
+                  localStorage.setItem("kb-hint-dismissed", "true");
+                }}
+                className="text-muted-foreground hover:text-foreground ml-1 rounded-md p-1 transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Icon Navigation Bar (WeChat-style) */}
       <div className="bg-sidebar border-sidebar-border flex w-14 flex-shrink-0 flex-col items-center gap-1 border-r py-4">
         {[
