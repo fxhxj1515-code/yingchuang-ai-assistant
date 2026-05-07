@@ -2,6 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::Manager;
 use proxy_guard::ProxyState;
+use tauri::tray::{TrayIconBuilder, MouseButton, MouseButtonState, TrayIconEvent};
 
 #[cfg(not(target_os = "android"))]
 mod mcp_stdio;
@@ -16,19 +17,16 @@ mod proxy_guard;
 fn check_pending_import(app: tauri::AppHandle) -> Option<String> {
   let mut candidates: Vec<PathBuf> = Vec::new();
 
-  // Tauri path APIs
   if let Ok(p) = app.path().data_dir() {
     candidates.push(p.join("pending_import.json"));
   }
   if let Ok(p) = app.path().app_data_dir() {
     candidates.push(p.join("pending_import.json"));
-    // Parent might be the files dir
     if let Some(parent) = p.parent() {
       candidates.push(parent.join("pending_import.json"));
     }
   }
 
-  // Known Android paths
   candidates.push(PathBuf::from("/data/data/com.lilongtao.talkio/files/pending_import.json"));
   candidates.push(PathBuf::from("/data/user/0/com.lilongtao.talkio/files/pending_import.json"));
 
@@ -55,7 +53,6 @@ pub fn run() {
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_http::init());
 
-  // Desktop: register MCP stdio commands + managed state
   #[cfg(not(target_os = "android"))]
   let builder = builder
     .manage(mcp_stdio::Sessions::default())
@@ -76,7 +73,6 @@ pub fn run() {
       proxy_guard::proxy_status,
     ]);
 
-  // Mobile: only register base commands
   #[cfg(target_os = "android")]
   let builder = builder
     .invoke_handler(tauri::generate_handler![check_pending_import]);
@@ -90,9 +86,74 @@ pub fn run() {
             .build(),
         )?;
       }
+
+      // ── 桌面端：系统托盘 + 关闭最小化 ──
+      #[cfg(not(target_os = "android"))]
+      {
+        let handle = app.handle().clone();
+        let window = app.get_webview_window("main").expect("main window not found");
+
+        // 拦截关闭 → 隐藏到托盘
+        let win_clone = window.clone();
+        window.on_window_event(move |event| {
+          if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();
+            let _ = win_clone.hide();
+          }
+        });
+
+        // 构建托盘菜单
+        let show_item = tauri::menu::MenuItemBuilder::with_id("show", "显示窗口")
+          .build(&handle)?;
+        let exit_item = tauri::menu::MenuItemBuilder::with_id("exit", "退出")
+          .build(&handle)?;
+
+        let menu = tauri::menu::MenuBuilder::new(&handle)
+          .item(&show_item)
+          .separator()
+          .item(&exit_item)
+          .build()?;
+
+        // 系统托盘
+        let _tray = TrayIconBuilder::new()
+          .icon(app.default_window_icon().cloned().unwrap())
+          .tooltip("映创AI助手")
+          .show_menu_on_left_click(false)
+          .menu(&menu)
+          .on_tray_icon_event(move |tray, event| {
+            if let TrayIconEvent::Click {
+              button: MouseButton::Left,
+              button_state: MouseButtonState::Up,
+              ..
+            } = event {
+              let app = tray.app_handle();
+              if let Some(w) = app.get_webview_window("main") {
+                let _ = w.show();
+                let _ = w.set_focus();
+              }
+            }
+          })
+          .on_menu_event(move |app_handle, event| {
+            match event.id().as_ref() {
+              "show" => {
+                if let Some(w) = app_handle.get_webview_window("main") {
+                  let _ = w.show();
+                  let _ = w.set_focus();
+                }
+              }
+              "exit" => {
+                app_handle.exit(0);
+              }
+              _ => {}
+            }
+          })
+          .build(app)?;
+      }
+
       // 启动 bridge 守护（桌面版）
       #[cfg(not(target_os = "android"))]
       bridge_guard::start_bridge_guard(&app.handle());
+
       Ok(())
     })
     .run(tauri::generate_context!())
