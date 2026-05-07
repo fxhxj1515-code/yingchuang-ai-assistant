@@ -19,6 +19,8 @@ import {
   Minimize2,
   Languages,
   Moon,
+  Sun,
+  Monitor,
   Download,
   Upload,
   Trash2,
@@ -403,19 +405,34 @@ export function SettingsPage({
               i18n.changeLanguage(["en", "zh"].includes(lng) ? lng : "en");
             }}
           />
-          <SettingsRow
-            icon={Moon}
-            iconColor="#64748b"
-            iconBg="rgba(100,116,139,0.1)"
-            label={t("settings.theme")}
-            detail={themeLabel}
-            onPress={() => {
-              const order: AppSettings["theme"][] = ["system", "light", "dark"];
-              const idx = order.indexOf(settings.theme);
-              updateSettings({ theme: order[(idx + 1) % order.length] });
-            }}
-            isLast
-          />
+          {/* Theme Picker — visual cards */}
+          <div className="py-1">
+            <div className="text-muted-foreground uppercase px-4 py-1 text-xs font-medium tracking-wide">
+              {t("settings.theme")}
+            </div>
+            <div className="grid grid-cols-3 gap-2 px-4 mt-1">
+              {([
+                { id: "light" as const, icon: Sun, label: t("settings.themeLight"), preview: "bg-white" },
+                { id: "dark" as const, icon: Moon, label: t("settings.themeDark"), preview: "bg-zinc-900" },
+                { id: "system" as const, icon: Monitor, label: t("settings.themeSystem"), preview: "bg-gradient-to-r from-white to-zinc-900" },
+              ]).map(({ id, icon: Icon, label, preview }) => (
+                <button
+                  key={id}
+                  onClick={() => updateSettings({ theme: id })}
+                  className={`flex flex-col items-center gap-2 rounded-xl border p-3 transition-all ${
+                    settings.theme === id
+                      ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                      : "border-border hover:border-primary/30"
+                  }`}
+                >
+                  <div className={`flex h-16 w-full items-center justify-center rounded-lg ${preview} border border-border`}>
+                    <Icon className={`h-5 w-5 ${id === "system" ? "text-zinc-700" : ""}`} />
+                  </div>
+                  <span className="text-xs font-medium">{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* ── Group 4: Data ── */}
