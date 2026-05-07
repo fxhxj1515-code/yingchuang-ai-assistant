@@ -21,6 +21,7 @@ import {
   Code,
   Lightbulb,
   BookOpen,
+  BarChart3,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ModelPicker } from "../shared/ModelPicker";
@@ -30,6 +31,7 @@ import { SettingsPage } from "../../pages/settings/SettingsPage";
 import { DiscoverPage } from "../../pages/DiscoverPage";
 import { KnowledgeBaseList } from "../../pages/KnowledgeBase";
 import { WeChatPanel } from "../../pages/WeChatPanel";
+import { StatsPage } from "../../pages/StatsPage";
 import { ModelsPage } from "../../pages/settings/ModelsPage";
 import { useChatStore, type ChatState } from "../../stores/chat-store";
 import { useConversations } from "../../hooks/useDatabase";
@@ -65,7 +67,7 @@ import {
 } from "../../data/conversation-templates";
 import { updateGroupSystemPrompt } from "../../stores/chat-store-actions";
 
-type DesktopSection = "chats" | "experts" | "discover" | "knowledge" | "wechat" | "settings";
+type DesktopSection = "chats" | "experts" | "discover" | "knowledge" | "wechat" | "stats" | "settings";
 
 const MIN_SIDEBAR = 200;
 const MAX_SIDEBAR = 480;
@@ -137,6 +139,7 @@ export function DesktopLayout() {
           { id: "discover" as DesktopSection, icon: CircleUser, label: t("tabs.personas") },
           { id: "knowledge" as DesktopSection, icon: BookOpen, label: "知识库" },
           { id: "wechat" as DesktopSection, icon: MessageCircle, label: "微信Bot" },
+          { id: "stats" as DesktopSection, icon: BarChart3, label: "数据" },
         ].map(({ id, icon: Icon, label }) => (
           <Tooltip key={id}>
             <TooltipTrigger asChild>
@@ -208,6 +211,8 @@ export function DesktopLayout() {
           <KnowledgeBaseList />
         ) : activeSection === "wechat" ? (
           <WeChatPanel />
+        ) : activeSection === "stats" ? (
+          <StatsPage />
         ) : activeSection === "chats" && currentConversationId ? (
           <DesktopChatPanel conversationId={currentConversationId} />
         ) : (
