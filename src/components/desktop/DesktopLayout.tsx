@@ -3,6 +3,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 import {
   MessagesSquare,
+  MessageCircle,
   Box,
   CircleUser,
   Settings,
@@ -19,12 +20,16 @@ import {
   FileText,
   Code,
   Lightbulb,
+  BookOpen,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ModelPicker } from "../shared/ModelPicker";
+import { HomePage } from "../../pages/HomePage";
 import { AddMemberPicker, type SelectedMember } from "../shared/AddMemberPicker";
 import { SettingsPage } from "../../pages/settings/SettingsPage";
 import { DiscoverPage } from "../../pages/DiscoverPage";
+import { KnowledgeBaseList } from "../../pages/KnowledgeBase";
+import { WeChatPanel } from "../../pages/WeChatPanel";
 import { ModelsPage } from "../../pages/settings/ModelsPage";
 import { useChatStore, type ChatState } from "../../stores/chat-store";
 import { useConversations } from "../../hooks/useDatabase";
@@ -60,7 +65,7 @@ import {
 } from "../../data/conversation-templates";
 import { updateGroupSystemPrompt } from "../../stores/chat-store-actions";
 
-type DesktopSection = "chats" | "experts" | "discover" | "settings";
+type DesktopSection = "chats" | "experts" | "discover" | "knowledge" | "wechat" | "settings";
 
 const MIN_SIDEBAR = 200;
 const MAX_SIDEBAR = 480;
@@ -130,6 +135,8 @@ export function DesktopLayout() {
           { id: "chats" as DesktopSection, icon: MessagesSquare, label: t("tabs.chats") },
           { id: "experts" as DesktopSection, icon: Box, label: t("tabs.models") },
           { id: "discover" as DesktopSection, icon: CircleUser, label: t("tabs.personas") },
+          { id: "knowledge" as DesktopSection, icon: BookOpen, label: "知识库" },
+          { id: "wechat" as DesktopSection, icon: MessageCircle, label: "微信Bot" },
         ].map(({ id, icon: Icon, label }) => (
           <Tooltip key={id}>
             <TooltipTrigger asChild>
@@ -197,10 +204,24 @@ export function DesktopLayout() {
             }}
             onCreateGroup={() => setShowCreateGroupPicker(true)}
           />
+        ) : activeSection === "knowledge" ? (
+          <KnowledgeBaseList />
+        ) : activeSection === "wechat" ? (
+          <WeChatPanel />
         ) : activeSection === "chats" && currentConversationId ? (
           <DesktopChatPanel conversationId={currentConversationId} />
         ) : (
-          <DesktopEmptyState section={activeSection} />
+          <HomePage
+            onNewChat={() => {
+              setActiveSection("chats");
+              document.querySelector<HTMLButtonElement>("[data-new-chat]")?.click();
+            }}
+            onCreateGroup={() => setShowCreateGroupPicker(true)}
+            onNavigateToChat={(convId) => {
+              setCurrentConversation(convId);
+              setActiveSection("chats");
+            }}
+          />
         )}
       </div>
 
@@ -611,16 +632,5 @@ function DesktopConversationItem({
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
-  );
-}
-
-function DesktopEmptyState({ section }: { section: DesktopSection }) {
-  const { t } = useTranslation();
-  return (
-    <div className="text-muted-foreground flex h-full flex-col items-center justify-center">
-      <img src="/logo.png" alt="Talkio" className="mb-4 h-32 w-32 object-contain" />
-      <p className="text-lg font-medium">Talkio</p>
-      <p className="text-muted-foreground/60 mt-1 text-sm">{t("chats.startConversation")}</p>
-    </div>
   );
 }
