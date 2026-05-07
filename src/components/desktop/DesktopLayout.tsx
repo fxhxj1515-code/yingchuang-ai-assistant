@@ -28,6 +28,7 @@ import { useTranslation } from "react-i18next";
 import { ModelPicker } from "../shared/ModelPicker";
 import { KeyboardCheatsheet } from "../shared/KeyboardCheatsheet";
 import { PageTransition } from "../shared/PageTransition";
+import { ConversationListSkeleton } from "../shared/Skeleton";
 import { HomePage } from "../../pages/HomePage";
 import { AddMemberPicker, type SelectedMember } from "../shared/AddMemberPicker";
 import { SettingsPage } from "../../pages/settings/SettingsPage";
@@ -269,7 +270,13 @@ function DesktopConversationList() {
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [animateRef] = useAutoAnimate();
+
+  useEffect(() => {
+    const t = setTimeout(() => setIsInitialLoading(false), 600);
+    return () => clearTimeout(t);
+  }, []);
 
   const enabledModels = models.filter((m) => m.enabled);
 
@@ -469,7 +476,9 @@ function DesktopConversationList() {
 
       {/* List */}
       <div ref={animateRef} className="flex-1 overflow-y-auto py-1">
-        {filteredConversations.length === 0 ? (
+        {isInitialLoading ? (
+          <ConversationListSkeleton />
+        ) : filteredConversations.length === 0 ? (
           <div className="px-4 py-8 text-center">
             <p className="text-muted-foreground text-xs">
               {searchQuery ? t("chats.noResults") : t("chats.noConversations")}
