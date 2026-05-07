@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ModelPicker } from "../shared/ModelPicker";
+import { KeyboardCheatsheet } from "../shared/KeyboardCheatsheet";
 import { HomePage } from "../../pages/HomePage";
 import { AddMemberPicker, type SelectedMember } from "../shared/AddMemberPicker";
 import { SettingsPage } from "../../pages/settings/SettingsPage";
@@ -80,6 +81,7 @@ export function DesktopLayout() {
   const setCurrentConversation = useChatStore((s: ChatState) => s.setCurrentConversation);
   const createConversation = useChatStore((s: ChatState) => s.createConversation);
   const [showCreateGroupPicker, setShowCreateGroupPicker] = useState(false);
+  const [showCheatsheet, setShowCheatsheet] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem("desktop-sidebar-width");
     return saved ? Math.max(MIN_SIDEBAR, Math.min(MAX_SIDEBAR, Number(saved))) : DEFAULT_SIDEBAR;
@@ -97,6 +99,7 @@ export function DesktopLayout() {
   );
   useHotkeys("mod+shift+s", () => setActiveSection("settings"), { preventDefault: true });
   useHotkeys("mod+,", () => setActiveSection("settings"), { preventDefault: true });
+  useHotkeys("shift+/", () => setShowCheatsheet((v) => !v), { preventDefault: true });
 
   const sidebarWidthRef = useRef(sidebarWidth);
   useEffect(() => {
@@ -241,6 +244,7 @@ export function DesktopLayout() {
           setActiveSection("chats");
         }}
       />
+      <KeyboardCheatsheet open={showCheatsheet} onClose={() => setShowCheatsheet(false)} />
     </div>
   );
 }
