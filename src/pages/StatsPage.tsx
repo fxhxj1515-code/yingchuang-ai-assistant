@@ -9,14 +9,12 @@ import {
   MessageSquare,
   Zap,
   Trophy,
-  ArrowRight,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@web/components/ui/button";
 import { useProviderStore } from "@web/stores/provider-store";
 import { TokenStatsPanel } from "./TokenStatsPanel";
 import { OverviewStatsPanel } from "./OverviewStatsPanel";
-import type { Model } from "@web/types";
+import { RankStatsPanel } from "./RankStatsPanel";
 
 type StatsTab = "overview" | "tokens" | "rank";
 
@@ -30,7 +28,7 @@ export function StatsPage() {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<StatsTab>("overview");
   const models = useProviderStore((s) => s.models);
-  const enabledModels = models.filter((m: Model) => m.enabled);
+  const enabledModels = models.filter((m) => m.enabled);
 
   return (
     <div className="mx-auto flex h-full max-w-4xl flex-col overflow-y-auto px-6 py-8">
@@ -77,7 +75,7 @@ export function StatsPage() {
       <div className="flex-1">
         {activeTab === "overview" && <OverviewStatsPanel />}
         {activeTab === "tokens" && <TokenStatsPanel />}
-        {activeTab === "rank" && <RankPlaceholder models={enabledModels} />}
+        {activeTab === "rank" && <RankStatsPanel />}
       </div>
     </div>
   );
@@ -103,44 +101,6 @@ function StatCard({
         <p className="text-muted-foreground text-xs">{label}</p>
         <p className="text-2xl font-bold tracking-tight">{value}</p>
       </div>
-    </div>
-  );
-}
-
-/** 排行占位 —— C4 填充 */
-function RankPlaceholder({ models }: { models: Model[] }) {
-  return (
-    <div className="flex h-full flex-col gap-4">
-      <div className="flex items-center gap-2 text-sm font-medium">
-        <Trophy className="h-4 w-4 text-muted-foreground" />
-        模型使用排行
-      </div>
-      {models.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-border bg-muted/30">
-          <div className="text-center">
-            <Trophy className="mx-auto h-10 w-10 text-muted-foreground/40" />
-            <p className="text-muted-foreground mt-2 text-sm">暂无模型数据</p>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {models.map((m, i) => (
-            <div
-              key={m.id}
-              className="flex items-center gap-3 rounded-xl border border-border bg-card p-3"
-            >
-              <span className="text-muted-foreground w-6 text-center text-sm font-bold">
-                {i + 1}
-              </span>
-              <div className="flex-1">
-                <p className="text-sm font-medium">{m.displayName || m.id}</p>
-                <p className="text-muted-foreground text-xs">{m.id}</p>
-              </div>
-              <span className="text-muted-foreground text-xs">-- 次</span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
