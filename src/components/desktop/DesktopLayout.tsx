@@ -24,6 +24,7 @@ import {
   BookOpen,
   BarChart3,
   X,
+  Home,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ModelPicker } from "../shared/ModelPicker";
@@ -189,7 +190,13 @@ export function DesktopLayout() {
           <Tooltip key={id}>
             <TooltipTrigger asChild>
               <button
-                onClick={() => setActiveSection(id)}
+                onClick={() => {
+                  if (id === "chats" && activeSection === "chats" && currentConversationId) {
+                    setCurrentConversation(null);
+                  } else {
+                    setActiveSection(id);
+                  }
+                }}
                 className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all ${
                   activeSection === id
                     ? "bg-primary text-primary-foreground shadow-sm"
@@ -386,8 +393,23 @@ function DesktopConversationList() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="border-sidebar-border flex flex-shrink-0 items-center justify-between border-b px-4 py-3">
-        <h2 className="text-sidebar-foreground text-sm font-semibold">{t("tabs.chats")}</h2>
+      <div className="border-sidebar-border flex flex-shrink-0 items-center justify-between border-b px-3 py-3">
+        <div className="flex items-center gap-1.5">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 rounded-md"
+                onClick={() => setCurrentConversation(null)}
+              >
+                <Home className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>返回首页</TooltipContent>
+          </Tooltip>
+          <h2 className="text-sidebar-foreground text-sm font-semibold">{t("tabs.chats")}</h2>
+        </div>
         <div className="flex items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
