@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { AnimatePresence } from "framer-motion";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 import {
@@ -26,6 +27,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { ModelPicker } from "../shared/ModelPicker";
 import { KeyboardCheatsheet } from "../shared/KeyboardCheatsheet";
+import { PageTransition } from "../shared/PageTransition";
 import { HomePage } from "../../pages/HomePage";
 import { AddMemberPicker, type SelectedMember } from "../shared/AddMemberPicker";
 import { SettingsPage } from "../../pages/settings/SettingsPage";
@@ -198,6 +200,8 @@ export function DesktopLayout() {
 
       {/* Main Content Area */}
       <div className="bg-background min-w-0 flex-1">
+        <AnimatePresence mode="wait">
+          <PageTransition key={activeSection + (currentConversationId ?? "home")}>
         {activeSection === "settings" ? (
           <SettingsPage />
         ) : activeSection === "discover" ? (
@@ -232,6 +236,8 @@ export function DesktopLayout() {
             onNavigateToStats={() => setActiveSection("stats")}
           />
         )}
+          </PageTransition>
+        </AnimatePresence>
       </div>
 
       <AddMemberPicker
