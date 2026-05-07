@@ -35,6 +35,7 @@ interface HomePageProps {
   onCreateGroup: () => void;
   onNavigateToChat?: (convId: string) => void;
   onNavigateToStats?: () => void;
+  onNavigateToSection?: (section: "discover" | "knowledge" | "wechat") => void;
 }
 
 /**
@@ -98,7 +99,7 @@ const featureCards = [
   },
 ];
 
-export function HomePage({ onNewChat, onCreateGroup, onNavigateToChat, onNavigateToStats }: HomePageProps) {
+export function HomePage({ onNewChat, onCreateGroup, onNavigateToChat, onNavigateToStats, onNavigateToSection }: HomePageProps) {
   const { t } = useTranslation();
   const { planStatus, overseasStatus } = useMockStatus();
   const navigate = useNavigate();
@@ -112,7 +113,6 @@ export function HomePage({ onNewChat, onCreateGroup, onNavigateToChat, onNavigat
       return;
     }
     if (section === "experts") {
-      // 直接创建第一个可用模型的会话
       if (enabledModels.length > 0) {
         const conv = await createConversation(enabledModels[0].id);
         if (onNavigateToChat) onNavigateToChat(conv.id);
@@ -120,8 +120,11 @@ export function HomePage({ onNewChat, onCreateGroup, onNavigateToChat, onNavigat
       }
       return;
     }
-    // 其他 section 通过 DesktopLayout 切换
-    // 这里只处理快捷操作，切换由父组件负责
+    // discover / knowledge / wechat → 切换到对应侧边栏
+    if (section === "discover" || section === "knowledge" || section === "wechat") {
+      onNavigateToSection?.(section);
+      return;
+    }
   };
 
   const cardLabels: Record<string, { title: string; desc: string }> = {

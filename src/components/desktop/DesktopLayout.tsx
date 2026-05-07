@@ -281,6 +281,7 @@ export function DesktopLayout() {
               setActiveSection("chats");
             }}
             onNavigateToStats={() => setActiveSection("stats")}
+            onNavigateToSection={(s) => setActiveSection(s as DesktopSection)}
           />
         )}
           </PageTransition>
