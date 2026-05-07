@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@web/components/ui/button";
 import { useProviderStore } from "@web/stores/provider-store";
 import { TokenStatsPanel } from "./TokenStatsPanel";
+import { OverviewStatsPanel } from "./OverviewStatsPanel";
 import type { Model } from "@web/types";
 
 type StatsTab = "overview" | "tokens" | "rank";
@@ -74,7 +75,7 @@ export function StatsPage() {
 
       {/* 面板占位区 */}
       <div className="flex-1">
-        {activeTab === "overview" && <OverviewPlaceholder />}
+        {activeTab === "overview" && <OverviewStatsPanel />}
         {activeTab === "tokens" && <TokenStatsPanel />}
         {activeTab === "rank" && <RankPlaceholder models={enabledModels} />}
       </div>
@@ -101,25 +102,6 @@ function StatCard({
       <div>
         <p className="text-muted-foreground text-xs">{label}</p>
         <p className="text-2xl font-bold tracking-tight">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-/** 总览占位 —— C3 填充 */
-function OverviewPlaceholder() {
-  return (
-    <div className="flex h-full flex-col gap-4">
-      <div className="flex items-center gap-2 text-sm font-medium">
-        <TrendingUp className="h-4 w-4 text-muted-foreground" />
-        对话趋势
-      </div>
-      <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-border bg-muted/30">
-        <div className="text-center">
-          <BarChart3 className="mx-auto h-10 w-10 text-muted-foreground/40" />
-          <p className="text-muted-foreground mt-2 text-sm">对话量趋势图</p>
-          <p className="text-muted-foreground/60 mt-1 text-xs">接入数据后自动生成</p>
-        </div>
       </div>
     </div>
   );
