@@ -247,8 +247,8 @@ export function PlanPage() {
             <Copy size={14} className="inline mr-1" />复制
           </button>
         </div>
-        <p className="mt-3 text-[12px]" style={{ color: "var(--muted-foreground)" }}>转账后联系客服开通，提供交易哈希即可。支持任意金额，1 USDT ≈ 1 美元。</p>
-        <p className="mt-1 text-[11px]" style={{ color: "var(--muted-foreground)" }}>Sau khi chuyển khoản, liên hệ CSKH để kích hoạt, cung cấp transaction hash. 1 USDT ≈ 1 USD.</p>
+        <p className="mt-3 text-[12px]" style={{ color: "var(--muted-foreground)" }}>转账后发送 <b>交易哈希 + 用户名</b> 到 <b>fxhxj1515@gmail.com</b> 开通套餐。支持任意金额，1 USDT ≈ 1 美元。</p>
+        <p className="mt-1 text-[11px]" style={{ color: "var(--muted-foreground)" }}>Sau khi chuyển khoản, gửi <b>transaction hash + tên người dùng</b> đến <b>fxhxj1515@gmail.com</b> để kích hoạt. 1 USDT ≈ 1 USD.</p>
       </div>
 
       {/* Payment Modal */}
