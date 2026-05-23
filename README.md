@@ -4,7 +4,9 @@ A cross-platform AI assistant desktop app built with Tauri v2 + React. Supports 
 
 > 跨平台 AI 助手桌面应用，基于 Tauri v2 + React。支持多模型对话、MCP 工具、本地知识库、微信机器人、协作空间。
 
-## Features / 功能
+> Một ứng dụng desktop trợ lý AI đa nền tảng được xây dựng bằng Tauri v2 + React. Hỗ trợ trò chuyện đa mô hình, công cụ MCP, cơ sở tri thức cục bộ, bot WeChat và không gian làm việc cộng tác. *(Tiếng Việt)*
+
+## Features / 功能 / Tính năng
 
 - **Multi-model chat** — DeepSeek, Qwen, Llama, and more via OpenAI-compatible API
 - **7 languages** — English, 中文, Bahasa Indonesia, Tiếng Việt, ภาษาไทย, Bahasa Melayu, Tagalog
@@ -15,9 +17,11 @@ A cross-platform AI assistant desktop app built with Tauri v2 + React. Supports 
 - **Auto-update** — Built-in updater with signature verification
 - **Cross-platform** — Windows (MSI/NSIS), macOS, Linux
 
-## Download / 下载
+## Download / 下载 / Tải xuống
 
-Download the latest installer from [Releases](https://github.com/YOUR_USERNAME/yingchuang-ai-assistant/releases).
+Download the latest installer from [Releases](https://github.com/fxhxj1515-code/yingchuang-ai-assistant/releases).
+
+> Tải xuống trình cài đặt mới nhất từ [Releases](https://github.com/fxhxj1515-code/yingchuang-ai-assistant/releases).
 
 Or build from source — see below.
 
@@ -71,3 +75,5 @@ MIT — see [LICENSE](./LICENSE) for details.
 > **Note**: This software is free and open-source. The auto-update service, cloud AI models, and RAG embedding service are hosted by us. For commercial use or custom deployment, contact us.
 >
 > **注意**: 本软件免费开源。自动更新服务、云端 AI 模型、RAG 嵌入服务由我们托管。商业使用或定制部署请联系我们。
+>
+> **Lưu ý**: Phần mềm này là miễn phí và mã nguồn mở. Dịch vụ tự động cập nhật, các mô hình AI đám mây và dịch vụ nhúng RAG được chúng tôi lưu trữ. Để sử dụng thương mại hoặc triển khai tùy chỉnh, vui lòng liên hệ với chúng tôi.
