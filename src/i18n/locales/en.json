@@ -79,8 +79,10 @@
     "compressed": "Compressed",
     "reduction": "reduction",
     "clearHistory": "Clear History",
-    "clearHistoryConfirm": "Delete all messages in this conversation?",    "pinConversation": "Pin",
-    "unpinConversation": "Unpin",    "deleteMessageConfirm": "Delete this message?",
+    "clearHistoryConfirm": "Delete all messages in this conversation?",
+    "pinConversation": "Pin",
+    "unpinConversation": "Unpin",
+    "deleteMessageConfirm": "Delete this message?",
     "photoPermissionDenied": "Photo library access is required to attach images.",
     "imageSelected": "Image Selected",
     "selectModel": "Select Model",
@@ -237,7 +239,12 @@
     "compressionThreshold": "Threshold",
     "workspaceDir": "Workspace Directory",
     "selectDir": "Select",
-    "changeDir": "Change"
+    "changeDir": "Change",
+    "langId": "Bahasa Indonesia",
+    "langVi": "Tiếng Việt",
+    "langTh": "ภาษาไทย",
+    "langMs": "Bahasa Melayu",
+    "langTl": "Tagalog"
   },
   "providerEdit": {
     "quickSelect": "Quick Select",

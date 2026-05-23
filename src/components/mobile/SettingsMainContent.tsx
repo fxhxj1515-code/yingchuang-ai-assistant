@@ -35,7 +35,17 @@ export function SettingsMainContent() {
       ? t("settings.langZh")
       : settings.language === "en"
         ? t("settings.langEn")
-        : t("settings.langSystem");
+        : settings.language === "id"
+          ? t("settings.langId")
+          : settings.language === "vi"
+            ? t("settings.langVi")
+            : settings.language === "th"
+              ? t("settings.langTh")
+              : settings.language === "ms"
+                ? t("settings.langMs")
+                : settings.language === "tl"
+                  ? t("settings.langTl")
+                  : t("settings.langSystem");
 
   return (
     <div className="h-full overflow-y-auto" style={{ backgroundColor: "var(--background)" }}>
@@ -139,12 +149,12 @@ export function SettingsMainContent() {
           label={t("settings.language")}
           detail={langLabel}
           onPress={() => {
-            const order: AppSettings["language"][] = ["system", "en", "zh"];
+            const order: AppSettings["language"][] = ["system", "en", "zh", "id", "vi", "th", "ms", "tl"];
             const idx = order.indexOf(settings.language);
             const next = order[(idx + 1) % order.length];
             updateSettings({ language: next });
             const lng = next === "system" ? (navigator.language?.split("-")[0] ?? "en") : next;
-            i18n.changeLanguage(["en", "zh"].includes(lng) ? lng : "en");
+            i18n.changeLanguage(["en", "zh", "id", "vi", "th", "ms", "tl"].includes(lng) ? lng : "en");
           }}
         />
         <SettingsRow

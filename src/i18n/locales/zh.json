@@ -239,7 +239,12 @@
     "compressionThreshold": "触发阈值",
     "workspaceDir": "工作目录",
     "selectDir": "选择",
-    "changeDir": "更改"
+    "changeDir": "更改",
+    "langId": "Bahasa Indonesia",
+    "langVi": "Tiếng Việt",
+    "langTh": "ภาษาไทย",
+    "langMs": "Bahasa Melayu",
+    "langTl": "Tagalog"
   },
   "providerEdit": {
     "quickSelect": "快速选择",

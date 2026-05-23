@@ -5,3 +5,15 @@ src-tauri/target/
 *.log
 .DS_Store
 .vite/
+
+# Tauri signing keys — NEVER commit private key
+*.private
+*.private.pem
+*_sig.key
+tauri.signer.key
+~/.tauri/
+
+# PyInstaller build artifacts
+local-bridge/build/
+local-bridge/dist/
+local-bridge/*.spec
